@@ -1,5 +1,5 @@
 import React from "react";
-
+import { useNavigation } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 import CalendarScreen from "../screens/CalendarScreen";
@@ -11,11 +11,23 @@ import ProfileScreen from "../screens/ProfileScreen";
 const Tab = createBottomTabNavigator();
 
 export default function Tabs() {
+  const navigation = useNavigation<any>();
   return (
     <Tab.Navigator screenOptions={{ headerShown: true }}>
       <Tab.Screen name="Calendar" component={CalendarScreen} />
       <Tab.Screen name="Chat" component={ChatScreen} />
-      <Tab.Screen name="Add" component={AddScreen} />
+
+      <Tab.Screen
+        name="Add"
+        component={AddScreen}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate("CreateEvent");
+          },
+        }}
+      />
+
       <Tab.Screen name="Location" component={LocationScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
