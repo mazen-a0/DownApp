@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,15 @@ import { nameForUserId } from "../utils/userNames";
 
 type TabKey = "general" | "events";
 
+type ThreadRow = {
+  eventId: string;
+  title: string;
+  placeLabel?: string | null;
+  tag?: string;
+  lastText: string;
+  lastAt: string | null; // ISO or null
+};
+
 export default function ChatScreen() {
   const navigation = useNavigation<any>();
 
@@ -27,12 +36,50 @@ export default function ChatScreen() {
   const [groupId, setGroupId] = useState<string>("g1");
 
   const [events, setEvents] = useState<Event[]>([]);
-
   const [general, setGeneral] = useState<Message[]>([]);
   const [eventsFeed, setEventsFeed] = useState<Message[]>([]);
+
+  const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [text, setText] = useState("");
 
-  const listRef = useRef<FlatList>(null);
+  const generalListRef = useRef<FlatList>(null);
+
+  const buildThreads = (evts: Event[], feed: Message[]): ThreadRow[] => {
+    // latest message per event
+    const latestByEvent: Record<string, Message> = {};
+    for (const m of feed) {
+      if (!m.eventId) continue;
+      const existing = latestByEvent[m.eventId];
+      if (!existing) {
+        latestByEvent[m.eventId] = m;
+      } else {
+        const a = new Date(existing.createdAt).getTime();
+        const b = new Date(m.createdAt).getTime();
+        if (b > a) latestByEvent[m.eventId] = m;
+      }
+    }
+
+    const rows: ThreadRow[] = evts.map((e) => {
+      const latest = latestByEvent[e.eventId];
+      return {
+        eventId: e.eventId,
+        title: e.title,
+        placeLabel: e.placeLabel ?? null,
+        tag: (e as any).tag,
+        lastText: latest ? latest.text : "No messages yet",
+        lastAt: latest ? latest.createdAt : null,
+      };
+    });
+
+    // Sort threads: most recent message first; if no message, push lower
+    rows.sort((a, b) => {
+      const ta = a.lastAt ? new Date(a.lastAt).getTime() : 0;
+      const tb = b.lastAt ? new Date(b.lastAt).getTime() : 0;
+      return tb - ta;
+    });
+
+    return rows;
+  };
 
   const load = async () => {
     const [gid, uid, evts] = await Promise.all([
@@ -52,6 +99,12 @@ export default function ChatScreen() {
 
     setGeneral(g);
     setEventsFeed(ef);
+    setThreads(buildThreads(evts, ef));
+
+    // When general loads, scroll to bottom like iMessage
+    setTimeout(() => {
+      if (tab === "general") generalListRef.current?.scrollToEnd({ animated: false });
+    }, 50);
   };
 
   useEffect(() => {
@@ -62,14 +115,6 @@ export default function ChatScreen() {
     useCallback(() => {
       load();
     }, [])
-  );
-
-  const eventTitleFor = useCallback(
-    (eventId?: string | null) => {
-      if (!eventId) return null;
-      return events.find((e) => e.eventId === eventId)?.title || "Event";
-    },
-    [events]
   );
 
   const onSendGeneral = async () => {
@@ -86,51 +131,15 @@ export default function ChatScreen() {
     setText("");
     await load();
 
-    // scroll to bottom of general chat after sending
     setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
+      generalListRef.current?.scrollToEnd({ animated: true });
     }, 50);
   };
 
-  const data = tab === "general" ? general : eventsFeed;
-
-  const renderBubble = ({ item }: { item: Message }) => {
+  const renderGeneralBubble = ({ item }: { item: Message }) => {
     const mine = item.fromUserId === userId;
     const time = dayjs(item.createdAt).format("h:mm A");
 
-    if (tab === "events") {
-      // FEED: show event label + tap to open event
-      const eventTitle = eventTitleFor(item.eventId);
-      return (
-        <Pressable
-          onPress={() => {
-            if (item.eventId) navigation.navigate("EventDetail", { eventId: item.eventId });
-          }}
-          style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
-        >
-          <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
-            <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-              <Text style={[styles.author, mine ? styles.authorMine : styles.authorTheirs]}>
-                {mine ? "You" : nameForUserId(item.fromUserId)}
-              </Text>
-
-              <Text style={[styles.msg, mine ? styles.msgMine : styles.msgTheirs]}>{item.text}</Text>
-
-              <View style={styles.metaRow}>
-                <Text style={[styles.meta, mine ? styles.metaMine : styles.metaTheirs]}>{time}</Text>
-                {eventTitle ? (
-                  <Text style={[styles.meta, mine ? styles.metaMine : styles.metaTheirs]}>
-                    {"  "}•{"  "}In: {eventTitle}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          </View>
-        </Pressable>
-      );
-    }
-
-    // GENERAL: iMessage style
     return (
       <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
         <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
@@ -146,19 +155,53 @@ export default function ChatScreen() {
     );
   };
 
-  // On tab switch, try to show the latest stuff (bottom for general, top for feed)
+  const renderThread = ({ item }: { item: ThreadRow }) => {
+    const time = item.lastAt ? dayjs(item.lastAt).format("h:mm A") : "";
+    const subtitleParts = [];
+    if (item.placeLabel) subtitleParts.push(item.placeLabel);
+    if (item.tag) subtitleParts.push(item.tag);
+    const subtitle = subtitleParts.join(" • ");
+
+    return (
+      <Pressable
+        onPress={() => navigation.navigate("EventDetail", { eventId: item.eventId })}
+        style={({ pressed }) => [styles.threadRow, { opacity: pressed ? 0.7 : 1 }]}
+      >
+        <View style={styles.threadAvatar}>
+          <Text style={styles.threadAvatarText}>{(item.title || "E")[0].toUpperCase()}</Text>
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <View style={styles.threadTop}>
+            <Text style={styles.threadTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            {time ? <Text style={styles.threadTime}>{time}</Text> : null}
+          </View>
+
+          {subtitle ? (
+            <Text style={styles.threadSubtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+
+          <Text style={styles.threadPreview} numberOfLines={1}>
+            {item.lastText}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
+
+  // On tab switch, make general behave like a chat (bottom), events like list (top)
   useEffect(() => {
     setTimeout(() => {
-      if (tab === "general") listRef.current?.scrollToEnd({ animated: false });
-      else listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      if (tab === "general") generalListRef.current?.scrollToEnd({ animated: false });
     }, 50);
   }, [tab]);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1 }}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <View style={styles.container}>
         <Text style={styles.h1}>Chat</Text>
 
@@ -179,45 +222,64 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
-        {/* Messages */}
-        <FlatList
-          ref={listRef}
-          data={data}
-          keyExtractor={(m) => m.messageId}
-          renderItem={renderBubble}
-          contentContainerStyle={{ paddingVertical: 12, paddingBottom: tab === "general" ? 12 : 24 }}
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={{ padding: 16 }}>
-              <Text style={{ color: "#666", fontWeight: "700" }}>
-                No messages yet. Send one to start the chat.
+        {/* Content */}
+        {tab === "general" ? (
+          <>
+            <FlatList
+              ref={generalListRef}
+              data={general}
+              keyExtractor={(m) => m.messageId}
+              renderItem={renderGeneralBubble}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingVertical: 12, paddingBottom: 12 }}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={{ padding: 16 }}>
+                  <Text style={{ color: "#666", fontWeight: "700" }}>
+                    No messages yet. Send one to start the group chat.
+                  </Text>
+                </View>
+              }
+            />
+
+            <View style={styles.inputWrap}>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder="Message…"
+                style={styles.input}
+                returnKeyType="send"
+                onSubmitEditing={onSendGeneral}
+              />
+              <Pressable style={styles.sendBtn} onPress={onSendGeneral}>
+                <Text style={styles.sendText}>Send</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <FlatList
+              data={threads}
+              keyExtractor={(t) => t.eventId}
+              renderItem={renderThread}
+              style={{ flex: 1, marginTop: 8 }}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={{ padding: 16 }}>
+                  <Text style={{ color: "#666", fontWeight: "700" }}>
+                    No events yet. Create an event to start an event chat.
+                  </Text>
+                </View>
+              }
+            />
+
+            <View style={styles.feedHint}>
+              <Text style={styles.feedHintText}>
+                Tap an event to open its chat.
               </Text>
             </View>
-          }
-        />
-
-        {/* Input ONLY for General */}
-        {tab === "general" ? (
-          <View style={styles.inputWrap}>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder="Message…"
-              style={styles.input}
-              returnKeyType="send"
-              onSubmitEditing={onSendGeneral}
-            />
-            <Pressable style={styles.sendBtn} onPress={onSendGeneral}>
-              <Text style={styles.sendText}>Send</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.feedHint}>
-            <Text style={styles.feedHintText}>
-              This is a feed of event chats. Tap a message to open the event.
-            </Text>
-          </View>
+          </>
         )}
       </View>
     </KeyboardAvoidingView>
@@ -242,28 +304,17 @@ const styles = StyleSheet.create({
   tabText: { fontWeight: "900", color: "#111" },
   tabTextActive: { color: "white" },
 
+  // General chat bubbles
   row: { width: "100%", marginVertical: 6, paddingHorizontal: 2 },
   rowMine: { alignItems: "flex-end" },
   rowTheirs: { alignItems: "flex-start" },
-
-  bubble: {
-    maxWidth: "80%",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-  },
+  bubble: { maxWidth: "80%", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 18 },
   bubbleMine: { backgroundColor: "#111" },
   bubbleTheirs: { backgroundColor: "#f1f1f1" },
-
-  author: { fontWeight: "900", marginBottom: 6 },
-  authorMine: { color: "white" },
   authorTheirs: { color: "#111", fontWeight: "900", marginBottom: 6 },
-
   msg: { fontSize: 16, fontWeight: "600" },
   msgMine: { color: "white" },
   msgTheirs: { color: "#111" },
-
-  metaRow: { flexDirection: "row", marginTop: 8, flexWrap: "wrap" },
   meta: { marginTop: 8, fontSize: 12, fontWeight: "700" },
   metaMine: { color: "rgba(255,255,255,0.75)" },
   metaTheirs: { color: "#666" },
@@ -294,10 +345,31 @@ const styles = StyleSheet.create({
   },
   sendText: { color: "white", fontWeight: "900" },
 
-  feedHint: {
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
+  // Events thread list (IG DM style)
+  threadRow: {
+    flexDirection: "row",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f1f1",
   },
+  threadAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  threadAvatarText: { color: "white", fontWeight: "900", fontSize: 16 },
+  threadTop: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  threadTitle: { fontWeight: "900", fontSize: 16, flex: 1 },
+  threadTime: { color: "#666", fontWeight: "800", fontSize: 12 },
+  threadSubtitle: { marginTop: 2, color: "#666", fontWeight: "700", fontSize: 12 },
+  threadPreview: { marginTop: 4, color: "#444", fontWeight: "700" },
+
+  feedHint: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#eee" },
   feedHintText: { color: "#666", fontWeight: "700" },
 });

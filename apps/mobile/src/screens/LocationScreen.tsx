@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Alert } from "react-native";
 import dayjs from "dayjs";
 
-import { repo, Event } from "../repositories";
+import { repo, chatRepo, type Event, type Message } from "../repositories";
 import { getUserIdOrThrow } from "../state/getUser";
 import { nameForUserId } from "../utils/userNames";
 

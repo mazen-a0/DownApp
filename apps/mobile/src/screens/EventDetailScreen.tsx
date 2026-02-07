@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import dayjs from "dayjs";
 
-import { repo, chatRepo, Event, Message } from "../repositories";
+import { repo, chatRepo, type Event, type Message } from "../repositories";
 import { getUserIdOrThrow } from "../state/getUser";
 import { getGroupIdOrThrow } from "../state/getGroup";
 import { nameForUserId } from "../utils/userNames";

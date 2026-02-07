@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Alert } from "react-native";
 import dayjs from "dayjs";
 
-import { repo, EventTag } from "../repositories";
+import { repo, type EventTag } from "../repositories";
 import { getUserIdOrThrow } from "../state/getUser";
 
 const TAGS: EventTag[] = ["study", "library", "food", "bar", "club", "stay_in", "gym", "other"];

@@ -1,14 +1,27 @@
-import * as demo from "./demoRepo";
-import * as groups from "./demoGroupRepo";
-import * as chat from "./demoChatRepo";
-// Later: import * as api from "./apiRepo";
+import * as demoRepo from "./demoRepo";
+import * as apiRepo from "./apiRepo";
+import * as demoChatRepo from "./demoChatRepo";
+import * as demoGroupRepo from "./demoGroupRepo";
 
-export const USE_DEMO = true;
+// Toggle ONLY events list to API (safe)
+// Everything else stays demo for now.
+const USE_API_EVENTS = true;
 
-export const repo = demo; // later: switch to api
-export const groupRepo = groups; // later: switch to api groups
-export const chatRepo = chat; // later: switch to api chat
+export type { Event, EventTag } from "./types";
+export type { Message } from "./demoChatRepo";
 
-export * from "./types";
-export * from "./demoGroupRepo";
-export * from "./demoChatRepo";
+// ✅ repo keeps demo functions, but listEvents can come from API
+export const repo = {
+  ...demoRepo,
+  ...(USE_API_EVENTS ? { listEvents: apiRepo.listEvents } : {}),
+};
+
+// ✅ chat stays demo for now
+export const chatRepo = {
+  ...demoChatRepo,
+};
+
+// ✅ re-export groupRepo so GroupScreen works again
+export const groupRepo = {
+  ...demoGroupRepo,
+};

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { loadSession, saveSession, clearSession } from "../state/session";
+import { api, API_BASE_URL } from "../api/client";
 
 const DEMO_USERS = [
   { name: "Amir", userId: "u1" },
@@ -50,6 +51,37 @@ export default function ProfileScreen({ navigation }: any) {
     );
   };
 
+  const pingApi = async () => {
+    try {
+      const res = await api.get("/health");
+      Alert.alert("API OK ✅", JSON.stringify(res.data));
+    } catch (e: any) {
+      const status = e?.response?.status;
+
+      // If /health doesn't exist, try /
+      if (status === 404) {
+        try {
+          const res2 = await api.get("/");
+          Alert.alert("API Reachable ✅", JSON.stringify(res2.data).slice(0, 200));
+          return;
+        } catch (e2: any) {
+          const msg2 =
+            e2?.response
+              ? `${e2.response.status} ${JSON.stringify(e2.response.data)}`
+              : e2?.message || "Unknown error";
+          Alert.alert("API FAIL ❌", msg2);
+          return;
+        }
+      }
+
+      const msg =
+        e?.response
+          ? `${e.response.status} ${JSON.stringify(e.response.data)}`
+          : e?.message || "Unknown error";
+      Alert.alert("API FAIL ❌", msg);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.h1}>Profile</Text>
@@ -66,7 +98,14 @@ export default function ProfileScreen({ navigation }: any) {
 
         <Text style={styles.label}>Invite Code</Text>
         <Text style={styles.value}>{inviteCode || "—"}</Text>
+
+        <Text style={styles.label}>API Base URL</Text>
+        <Text style={styles.value}>{API_BASE_URL}</Text>
       </View>
+
+      <Pressable style={styles.pingBtn} onPress={pingApi}>
+        <Text style={styles.pingText}>Ping API</Text>
+      </Pressable>
 
       <Text style={styles.sectionTitle}>Switch demo user</Text>
       <View style={styles.row}>
@@ -103,6 +142,15 @@ const styles = StyleSheet.create({
 
   label: { marginTop: 10, fontSize: 13, color: "#666", fontWeight: "700" },
   value: { marginTop: 4, fontSize: 16, fontWeight: "700", color: "#111" },
+
+  pingBtn: {
+    marginTop: 12,
+    backgroundColor: "#111",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  pingText: { color: "white", fontWeight: "900" },
 
   sectionTitle: { marginTop: 22, fontSize: 16, fontWeight: "800" },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
