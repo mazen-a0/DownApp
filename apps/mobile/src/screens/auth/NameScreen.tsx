@@ -8,30 +8,66 @@ import {
   Button,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
-import { saveSession } from "../../state/session";
+import { saveSession, loadSession } from "../../state/session";
+import { upsertUser } from "../../api/usersApi";
+import { getOrCreateDeviceId } from "../../state/device";
+import { setUserIdHeader } from "../../api/client";
 
 export default function NameScreen({ navigation }: any) {
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const onContinue = () => {
-    Alert.alert("Pressed!", "Button press detected ✅");
-
+  const onContinue = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
       Alert.alert("Name required", "Please enter your name.");
       return;
     }
 
-    const fakeUserId = "demo-user-" + Math.floor(Math.random() * 1000000);
+    if (loading) return;
+    setLoading(true);
 
-    // Save, but don't block navigation if anything is slow
-    saveSession({ name: trimmed, userId: fakeUserId }).catch(() => {});
+    try {
+      // If we already have a userId saved, don't create again — just proceed.
+      const existing = await loadSession();
+      if (existing.userId) {
+        setUserIdHeader(existing.userId);
+        await saveSession({ name: trimmed }); // let them update their display name locally
+        navigation.reset({ index: 0, routes: [{ name: "Group" }] });
+        return;
+      }
 
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Group" }],
-    });
+      // 1) stable device id
+      const deviceId = await getOrCreateDeviceId();
+
+      // 2) create/update user in DB (upsert)
+      const { userId } = await upsertUser({
+        name: trimmed,
+        deviceId,
+        pushToken: null, // later: real Expo token
+      });
+
+      // 3) set axios header for everything else
+      setUserIdHeader(userId);
+
+      // 4) persist session
+      await saveSession({ name: trimmed, userId });
+
+      // 5) go next
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Group" }],
+      });
+    } catch (e: any) {
+      const msg = e?.response
+        ? `${e.response.status}: ${JSON.stringify(e.response.data)}`
+        : e?.message;
+      Alert.alert("User create failed", msg || "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,10 +85,19 @@ export default function NameScreen({ navigation }: any) {
         style={styles.input}
         autoCapitalize="words"
         returnKeyType="done"
+        editable={!loading}
+        onSubmitEditing={onContinue}
       />
 
       <View style={{ marginTop: 16 }}>
-        <Button title="Continue" onPress={onContinue} />
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator />
+            <Text style={styles.loadingText}>Creating profile…</Text>
+          </View>
+        ) : (
+          <Button title="Continue" onPress={onContinue} />
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -70,4 +115,11 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 16,
   },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+  },
+  loadingText: { color: "#555", fontWeight: "700" },
 });

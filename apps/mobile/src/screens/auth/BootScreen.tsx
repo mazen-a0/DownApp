@@ -20,6 +20,7 @@ export default function BootScreen({ navigation }: any) {
       try {
         setStatus("Loading session…");
         const session = await loadSession();
+        if (session.userId) setUserIdHeader(session.userId);
 
         // ✅ set x-user-id header for ALL future API calls
         if (session.userId) {
