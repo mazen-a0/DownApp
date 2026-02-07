@@ -1,8 +1,8 @@
-
 // create Express app + middleware, objective: run npm run dev and see server running, port 3000
 const express = require("express");
 const cors = require("cors");
 const usersRoutes = require("./routes/users.routes");
+const groupsRoutes = require("./routes/groups.routes");
 
 const app = express(); //creates the app
 
@@ -23,9 +23,12 @@ app.use("/users", usersRoutes);
 // require user for everything else (MVP)
 app.use(requireUser);
 
+// Protected routes (x-user-id required)
+app.use("/groups", groupsRoutes);
+
+
 //app.get("/me", (req, res) => {
 //    res.json({ userId: req.userId });
 //}); former test route
 
 module.exports = app;
-
