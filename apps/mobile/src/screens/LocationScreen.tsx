@@ -1,15 +1,244 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Alert } from "react-native";
+import dayjs from "dayjs";
+
+import { repo, Event } from "../repositories";
+import { getUserIdOrThrow } from "../state/getUser";
+import { nameForUserId } from "../utils/userNames";
+
+type HereRecord = {
+  userId: string;
+  eventId: string;
+  title: string;
+  placeLabel: string;
+  endAt: string;
+};
 
 export default function LocationScreen() {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState<string>("");
+
+  const load = async () => {
+    const [uid, list] = await Promise.all([getUserIdOrThrow(), repo.listEvents()]);
+    setUserId(uid);
+    setEvents(list);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
+  // Build "who is where" from hereIds
+  const hereList: HereRecord[] = useMemo(() => {
+    const out: HereRecord[] = [];
+    for (const e of events) {
+      if (!e.placeLabel) continue;
+      for (const uid of e.hereIds) {
+        out.push({
+          userId: uid,
+          eventId: e.eventId,
+          title: e.title,
+          placeLabel: e.placeLabel,
+          endAt: e.endAt,
+        });
+      }
+    }
+    // Sort by place then name
+    out.sort((a, b) => {
+      const p = a.placeLabel.localeCompare(b.placeLabel);
+      if (p !== 0) return p;
+      return nameForUserId(a.userId).localeCompare(nameForUserId(b.userId));
+    });
+    return out;
+  }, [events]);
+
+  const currentHereForMe = useMemo(() => {
+    return hereList.find((x) => x.userId === userId) || null;
+  }, [hereList, userId]);
+
+  const doCheckIn = async (targetEventId: string) => {
+    await repo.checkIn(targetEventId, userId);
+    await load();
+  };
+
+  const doCheckout = async (targetEventId: string) => {
+    // @ts-ignore demoRepo export
+    await repo.checkout(targetEventId, userId);
+    await load();
+  };
+
+  const onToggleHereForEvent = async (targetEventId: string, label: string) => {
+    if (!userId) return;
+
+    // If I'm already here at THIS event -> checkout
+    if (currentHereForMe?.eventId === targetEventId) {
+      await doCheckout(targetEventId);
+      return;
+    }
+
+    // If I'm here somewhere else -> prompt switch
+    if (currentHereForMe && currentHereForMe.eventId !== targetEventId) {
+      Alert.alert(
+        "Switch location?",
+        `You're currently checked in at:\n\n${currentHereForMe.title} (${currentHereForMe.placeLabel})\n\nCheck out and check in at:\n${label}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Yes, switch",
+            onPress: async () => {
+              await doCheckIn(targetEventId);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Otherwise just check in
+    await doCheckIn(targetEventId);
+  };
+
+  // A simple list of events that have a place (so location tab has actions)
+  const eventsWithPlaces = useMemo(() => {
+    return events
+      .filter((e) => !!e.placeLabel)
+      .sort((a, b) => dayjs(a.startAt).valueOf() - dayjs(b.startAt).valueOf());
+  }, [events]);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Location</Text>
-    </View>
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      <Text style={styles.h1}>Where people are</Text>
+      <Text style={styles.sub}>
+        Based on “I’m here” check-ins (no GPS). Pull down to refresh.
+      </Text>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Checked in</Text>
+
+        {hereList.length === 0 ? (
+          <Text style={styles.small}>No one is checked in yet.</Text>
+        ) : (
+          hereList.map((x) => (
+            <View key={`${x.userId}-${x.eventId}`} style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>
+                  {x.userId === userId ? `${nameForUserId(x.userId)} (you)` : nameForUserId(x.userId)}
+                </Text>
+                <Text style={styles.meta}>
+                  {x.placeLabel} • {x.title}
+                </Text>
+              </View>
+
+              {x.userId === userId ? (
+                <Pressable style={styles.outBtn} onPress={() => doCheckout(x.eventId)}>
+                  <Text style={styles.outText}>Check out</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Places you can check into</Text>
+        {eventsWithPlaces.length === 0 ? (
+          <Text style={styles.small}>Create an event with a place to see it here.</Text>
+        ) : (
+          eventsWithPlaces.map((e) => {
+            const label = `${e.title} (${e.placeLabel})`;
+            const amHere = currentHereForMe?.eventId === e.eventId;
+
+            return (
+              <View key={e.eventId} style={styles.eventRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.eventTitle}>{e.placeLabel}</Text>
+                  <Text style={styles.meta}>{e.title}</Text>
+                  <Text style={styles.meta}>
+                    {dayjs(e.startAt).format("h:mm A")}–{dayjs(e.endAt).format("h:mm A")} • {e.tag}
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={[styles.hereBtn, amHere && styles.hereBtnAlt]}
+                  onPress={() => onToggleHereForEvent(e.eventId, label)}
+                >
+                  <Text style={[styles.hereBtnText, amHere && styles.hereBtnTextAlt]}>
+                    {amHere ? "Check out" : "I'm here"}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })
+        )}
+      </View>
+
+      <View style={{ height: 30 }} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: "center", justifyContent: "center" },
-  text: { fontSize: 24, fontWeight: "600" },
+  container: { flex: 1, padding: 16, paddingTop: 20 },
+  h1: { fontSize: 28, fontWeight: "800" },
+  sub: { marginTop: 8, color: "#555" },
+
+  card: {
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: "white",
+  },
+  sectionTitle: { fontSize: 16, fontWeight: "900", marginBottom: 10 },
+
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
+  name: { fontSize: 16, fontWeight: "800" },
+  meta: { marginTop: 2, color: "#555" },
+  small: { color: "#555" },
+
+  outBtn: {
+    backgroundColor: "#f2f2f2",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e6e6e6",
+  },
+  outText: { fontWeight: "900" },
+
+  eventRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f2f2f2",
+  },
+  eventTitle: { fontSize: 16, fontWeight: "900" },
+
+  hereBtn: {
+    backgroundColor: "black",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  hereBtnText: { color: "white", fontWeight: "900" },
+
+  hereBtnAlt: {
+    backgroundColor: "#f2f2f2",
+    borderWidth: 1,
+    borderColor: "#e6e6e6",
+  },
+  hereBtnTextAlt: { color: "#111" },
 });
