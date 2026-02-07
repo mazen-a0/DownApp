@@ -1,12 +1,10 @@
-// delete before PR
-
-
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  name: String,
+  name: { type: String, required: true },
   pushToken: String,
-  groupIds: [mongoose.Schema.Types.ObjectId],
+  groupIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model('User', userSchema);
