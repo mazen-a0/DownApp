@@ -15,7 +15,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { chatRepo, repo, Message, Event } from "../repositories";
 import { getGroupIdOrThrow } from "../state/getGroup";
 import { getUserIdOrThrow } from "../state/getUser";
-import { nameForUserId } from "../utils/userNames";
+import { nameForUserId } from "../state/userNames";
 
 type TabKey = "general" | "events";
 
