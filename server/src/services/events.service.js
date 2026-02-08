@@ -159,6 +159,35 @@ async function checkOutEvent({ userId, eventId }) {
   await Event.updateOne({ _id: eventId }, { $pull: { hereIds: userId } });
 }
 
+const Poke = require('../models/Poke');
+
+async function createPoke({ fromUserId, toUserId, eventId, message }) {
+  if (!toUserId || !message) {
+    const err = new Error('MISSING_FIELDS');
+    err.status = 400;
+    throw err;
+  }
+
+  const event = await Event.findById(eventId);
+  if (!event) {
+    const err = new Error('EVENT_NOT_FOUND');
+    err.status = 404;
+    throw err;
+  }
+
+  await assertMember(fromUserId, event.groupId);
+
+  await Poke.create({
+    eventId,
+    groupId: event.groupId,
+    fromUserId,
+    toUserId,
+    message,
+    createdAt: new Date(),
+  });
+}
+
+
 module.exports = {
   listEvents,
   createEvent,
@@ -166,4 +195,5 @@ module.exports = {
   leaveEvent,
   checkInEvent,
   checkOutEvent,
+  createPoke,
 };

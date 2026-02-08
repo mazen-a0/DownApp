@@ -77,6 +77,19 @@ async function checkOutEvent(req, res, next) {
   }
 }
 
+async function createPoke(req, res, next) {
+  try {
+    const fromUserId = req.userId;
+    const { eventId } = req.params;
+    const { toUserId, message } = req.body;
+
+    await eventsService.createPoke({ fromUserId, toUserId, eventId, message });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listEvents,
   createEvent,
@@ -84,4 +97,5 @@ module.exports = {
   leaveEvent,
   checkInEvent,
   checkOutEvent,
+  createPoke,
 };

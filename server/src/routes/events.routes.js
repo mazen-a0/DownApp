@@ -6,6 +6,7 @@ const {
   leaveEvent,
   checkInEvent,
   checkOutEvent,
+  createPoke,
 } = require("../controllers/events.controller");
 
 const router = express.Router();
@@ -27,5 +28,8 @@ router.post("/:eventId/checkin", checkInEvent);
 
 // POST /events/:eventId/checkout
 router.post("/:eventId/checkout", checkOutEvent);
+
+router.post('/:eventId/pokes', createPoke);
+
 
 module.exports = router;
