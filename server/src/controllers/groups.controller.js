@@ -33,4 +33,27 @@ async function joinGroup(req, res, next) {
   }
 }
 
-module.exports = { createGroup, joinGroup };
+async function getMyGroup(req, res, next) {
+  try {
+    const userId = req.userId;
+
+    const group = await groupsService.getMyGroup({ userId });
+
+    // If user has no group yet
+    if (!group) {
+      return res.json({ group: null });
+    }
+
+    res.json({
+      group: {
+        groupId: group._id,
+        name: group.name,
+        inviteCode: group.inviteCode,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createGroup, joinGroup, getMyGroup };
