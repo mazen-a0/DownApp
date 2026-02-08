@@ -7,6 +7,8 @@ const KEYS = {
   groupName: "groupName",
   inviteCode: "inviteCode",
   pushToken: "pushToken",
+  userPhotoUri: "userPhotoUri",
+  groupPhotoUri: "groupPhotoUri",
 } as const;
 
 export type Session = {
@@ -16,6 +18,8 @@ export type Session = {
   groupName: string | null;
   inviteCode: string | null;
   pushToken: string | null;
+  userPhotoUri: string | null;
+  groupPhotoUri: string | null;
 };
 
 export async function loadSession(): Promise<Session> {
@@ -27,9 +31,11 @@ export async function loadSession(): Promise<Session> {
       AsyncStorage.getItem(KEYS.groupName),
       AsyncStorage.getItem(KEYS.inviteCode),
       AsyncStorage.getItem(KEYS.pushToken),
+      AsyncStorage.getItem(KEYS.userPhotoUri),
+      AsyncStorage.getItem(KEYS.groupPhotoUri),
     ]);
 
-  return { userId, name, groupId, groupName, inviteCode, pushToken };
+  return { userId, name, groupId, groupName, inviteCode, pushToken, userPhotoUri, groupPhotoUri };
 }
 
 export async function saveSession(partial: Partial<Session>) {
@@ -47,6 +53,11 @@ export async function saveSession(partial: Partial<Session>) {
     entries.push([KEYS.inviteCode, partial.inviteCode]);
   if (partial.pushToken !== undefined && partial.pushToken !== null)
     entries.push([KEYS.pushToken, partial.pushToken]);
+  if (partial.userPhotoUri !== undefined && partial.userPhotoUri !== null)
+    entries.push([KEYS.userPhotoUri, partial.userPhotoUri]);
+
+  if (partial.groupPhotoUri !== undefined && partial.groupPhotoUri !== null)
+    entries.push([KEYS.groupPhotoUri, partial.groupPhotoUri]);
 
   if (entries.length > 0) await AsyncStorage.multiSet(entries);
 }

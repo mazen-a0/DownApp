@@ -9,14 +9,18 @@ import GroupScreen from "../screens/auth/GroupScreen";
 
 import CreateEventScreen from "../screens/CreateEventScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
+import GroupProfileScreen from "../screens/GroupProfileScreen";
 
 export type RootStackParamList = {
   Boot: undefined;
   Name: undefined;
   Group: undefined;
   Tabs: undefined;
+
   CreateEvent: undefined;
   EventDetail: { eventId: string };
+
+  GroupProfile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -31,8 +35,13 @@ export default function RootStack() {
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
 
       <Stack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "New Event" }} />
-
       <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
+
+      <Stack.Screen
+        name="GroupProfile"
+        component={GroupProfileScreen}
+        options={{ title: "Group settings" }}
+      />
     </Stack.Navigator>
   );
 }
