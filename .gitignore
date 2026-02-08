@@ -1,1 +1,23 @@
+# Environment variables
 .env
+**/.env
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# OS files
+.DS_Store
+**/.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Expo
+apps/mobile/.expo/
+apps/mobile/expo-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*

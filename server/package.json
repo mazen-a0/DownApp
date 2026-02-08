@@ -1,0 +1,25 @@
+{
+    "name": "downblock-server",
+    "version": "1.0.0",
+    "main": "src/index.js",
+    "description": "Backend for Down app",
+    "scripts": {
+        "start": "node src/index.js",
+        "dev": "nodemon src/index.js",
+        "seed": "node src/utils/seed.js",
+        "view": "node src/utils/view.js"
+    },
+    "keywords": [],
+    "author": "Sofia Filippov",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "cors": "^2.8.6",
+        "dotenv": "^17.2.4",
+        "express": "^5.2.1",
+        "mongoose": "^9.1.6"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.11"
+    }
+}
