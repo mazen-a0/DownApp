@@ -22,6 +22,8 @@ app.use("/users", usersRoutes);
 
 // require user for everything else (MVP)
 app.use(requireUser);
+const eventsRoutes = require("./routes/events.routes");
+app.use("/events", eventsRoutes);
 
 // Protected routes (x-user-id required)
 app.use("/groups", groupsRoutes);
