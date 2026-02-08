@@ -46,34 +46,33 @@ export async function loadSession(): Promise<Session> {
   return { userId, name, groupId, groupName, inviteCode, pushToken, userPhotoUri, groupPhotoUri };
 }
 
+/**
+ * Save parts of session.
+ * - undefined => do nothing
+ * - string => set key
+ * - null => remove key (IMPORTANT for switching groups cleanly)
+ */
 export async function saveSession(partial: Partial<Session>) {
-  const entries: Array<[string, string]> = [];
+  const toSet: Array<[string, string]> = [];
+  const toRemove: string[] = [];
 
-  if (partial.userId !== undefined && partial.userId !== null)
-    entries.push([KEYS.userId, partial.userId]);
+  const handle = (key: string, value: string | null | undefined) => {
+    if (value === undefined) return;      // leave unchanged
+    if (value === null) toRemove.push(key); // clear
+    else toSet.push([key, value]);        // set
+  };
 
-  if (partial.name !== undefined && partial.name !== null)
-    entries.push([KEYS.name, partial.name]);
+  handle(KEYS.userId, partial.userId);
+  handle(KEYS.name, partial.name);
+  handle(KEYS.groupId, partial.groupId);
+  handle(KEYS.groupName, partial.groupName);
+  handle(KEYS.inviteCode, partial.inviteCode);
+  handle(KEYS.pushToken, partial.pushToken);
+  handle(KEYS.userPhotoUri, partial.userPhotoUri);
+  handle(KEYS.groupPhotoUri, partial.groupPhotoUri);
 
-  if (partial.groupId !== undefined && partial.groupId !== null)
-    entries.push([KEYS.groupId, partial.groupId]);
-
-  if (partial.groupName !== undefined && partial.groupName !== null)
-    entries.push([KEYS.groupName, partial.groupName]);
-
-  if (partial.inviteCode !== undefined && partial.inviteCode !== null)
-    entries.push([KEYS.inviteCode, partial.inviteCode]);
-
-  if (partial.pushToken !== undefined && partial.pushToken !== null)
-    entries.push([KEYS.pushToken, partial.pushToken]);
-
-  if (partial.userPhotoUri !== undefined && partial.userPhotoUri !== null)
-    entries.push([KEYS.userPhotoUri, partial.userPhotoUri]);
-
-  if (partial.groupPhotoUri !== undefined && partial.groupPhotoUri !== null)
-    entries.push([KEYS.groupPhotoUri, partial.groupPhotoUri]);
-
-  if (entries.length > 0) await AsyncStorage.multiSet(entries);
+  if (toSet.length) await AsyncStorage.multiSet(toSet);
+  if (toRemove.length) await AsyncStorage.multiRemove(toRemove);
 }
 
 export async function clearSession() {

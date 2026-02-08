@@ -27,6 +27,7 @@ async function joinGroup(req, res, next) {
     res.json({
       groupId: group._id,
       name: group.name,
+      inviteCode: group.inviteCode, // ✅ add this
     });
   } catch (err) {
     next(err);
@@ -56,4 +57,23 @@ async function getMyGroup(req, res, next) {
   }
 }
 
-module.exports = { createGroup, joinGroup, getMyGroup };
+async function getMyGroups(req, res, next) {
+  try {
+    const userId = req.userId;
+
+    const groups = await groupsService.getMyGroups({ userId });
+
+    // Always return an array (frontend expects GroupDto[])
+    res.json(
+      (groups || []).map((g) => ({
+        groupId: g._id,
+        name: g.name,
+        inviteCode: g.inviteCode,
+      }))
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createGroup, joinGroup, getMyGroup, getMyGroups };

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ type ThreadRow = {
   placeLabel?: string | null;
   tag?: string;
   lastText: string;
-  lastAt: string | null; // ISO or null
+  lastAt: string | null;
 };
 
 export default function ChatScreen() {
@@ -33,7 +33,7 @@ export default function ChatScreen() {
 
   const [tab, setTab] = useState<TabKey>("general");
   const [userId, setUserId] = useState<string>("");
-  const [groupId, setGroupId] = useState<string>("g1");
+  const [groupId, setGroupId] = useState<string>("");
 
   const [events, setEvents] = useState<Event[]>([]);
   const [general, setGeneral] = useState<Message[]>([]);
@@ -45,14 +45,13 @@ export default function ChatScreen() {
   const generalListRef = useRef<FlatList>(null);
 
   const buildThreads = (evts: Event[], feed: Message[]): ThreadRow[] => {
-    // latest message per event
     const latestByEvent: Record<string, Message> = {};
+
     for (const m of feed) {
       if (!m.eventId) continue;
       const existing = latestByEvent[m.eventId];
-      if (!existing) {
-        latestByEvent[m.eventId] = m;
-      } else {
+      if (!existing) latestByEvent[m.eventId] = m;
+      else {
         const a = new Date(existing.createdAt).getTime();
         const b = new Date(m.createdAt).getTime();
         if (b > a) latestByEvent[m.eventId] = m;
@@ -71,7 +70,6 @@ export default function ChatScreen() {
       };
     });
 
-    // Sort threads: most recent message first; if no message, push lower
     rows.sort((a, b) => {
       const ta = a.lastAt ? new Date(a.lastAt).getTime() : 0;
       const tb = b.lastAt ? new Date(b.lastAt).getTime() : 0;
@@ -81,7 +79,13 @@ export default function ChatScreen() {
     return rows;
   };
 
-  const load = async () => {
+  const scrollGeneralToBottom = (animated: boolean) => {
+    setTimeout(() => {
+      generalListRef.current?.scrollToEnd({ animated });
+    }, 60);
+  };
+
+  const load = useCallback(async () => {
     const [gid, uid, evts] = await Promise.all([
       getGroupIdOrThrow(),
       getUserIdOrThrow(),
@@ -101,39 +105,39 @@ export default function ChatScreen() {
     setEventsFeed(ef);
     setThreads(buildThreads(evts, ef));
 
-    // When general loads, scroll to bottom like iMessage
-    setTimeout(() => {
-      if (tab === "general") generalListRef.current?.scrollToEnd({ animated: false });
-    }, 50);
-  };
+    if (tab === "general") scrollGeneralToBottom(false);
+  }, [tab]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
+  // ✅ Key for group switching: always reload when tab/screen regains focus
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [])
+    }, [load])
   );
 
   const onSendGeneral = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    await chatRepo.sendMessage({
-      groupId,
+    // ✅ Always pull freshest ids (prevents stale groupId after switching groups)
+    const [gid, uid] = await Promise.all([getGroupIdOrThrow(), getUserIdOrThrow()]);
+
+    // ✅ API should infer user from x-user-id, but demo repo might want fromUserId.
+    // We send a payload that works either way without TS breaking.
+    await (chatRepo as any).sendMessage({
+      groupId: gid,
       eventId: null,
-      fromUserId: userId,
       text: trimmed,
+      fromUserId: uid, // backend can ignore; demo can use it
     });
 
     setText("");
     await load();
-
-    setTimeout(() => {
-      generalListRef.current?.scrollToEnd({ animated: true });
-    }, 50);
+    scrollGeneralToBottom(true);
   };
 
   const renderGeneralBubble = ({ item }: { item: Message }) => {
@@ -143,12 +147,8 @@ export default function ChatScreen() {
     return (
       <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
         <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          {!mine ? (
-            <Text style={styles.authorTheirs}>{nameForUserId(item.fromUserId)}</Text>
-          ) : null}
-
+          {!mine ? <Text style={styles.authorTheirs}>{nameForUserId(item.fromUserId)}</Text> : null}
           <Text style={[styles.msg, mine ? styles.msgMine : styles.msgTheirs]}>{item.text}</Text>
-
           <Text style={[styles.meta, mine ? styles.metaMine : styles.metaTheirs]}>{time}</Text>
         </View>
       </View>
@@ -193,11 +193,8 @@ export default function ChatScreen() {
     );
   };
 
-  // On tab switch, make general behave like a chat (bottom), events like list (top)
   useEffect(() => {
-    setTimeout(() => {
-      if (tab === "general") generalListRef.current?.scrollToEnd({ animated: false });
-    }, 50);
+    if (tab === "general") scrollGeneralToBottom(false);
   }, [tab]);
 
   return (
@@ -205,7 +202,6 @@ export default function ChatScreen() {
       <View style={styles.container}>
         <Text style={styles.h1}>Chat</Text>
 
-        {/* Tabs */}
         <View style={styles.tabBar}>
           <Pressable
             onPress={() => setTab("general")}
@@ -222,7 +218,6 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
-        {/* Content */}
         {tab === "general" ? (
           <>
             <FlatList
@@ -275,9 +270,7 @@ export default function ChatScreen() {
             />
 
             <View style={styles.feedHint}>
-              <Text style={styles.feedHintText}>
-                Tap an event to open its chat.
-              </Text>
+              <Text style={styles.feedHintText}>Tap an event to open its chat.</Text>
             </View>
           </>
         )}
@@ -304,7 +297,6 @@ const styles = StyleSheet.create({
   tabText: { fontWeight: "900", color: "#111" },
   tabTextActive: { color: "white" },
 
-  // General chat bubbles
   row: { width: "100%", marginVertical: 6, paddingHorizontal: 2 },
   rowMine: { alignItems: "flex-end" },
   rowTheirs: { alignItems: "flex-start" },
@@ -345,7 +337,6 @@ const styles = StyleSheet.create({
   },
   sendText: { color: "white", fontWeight: "900" },
 
-  // Events thread list (IG DM style)
   threadRow: {
     flexDirection: "row",
     gap: 12,

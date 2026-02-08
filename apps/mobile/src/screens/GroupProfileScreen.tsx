@@ -1,9 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, Alert, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  Alert,
+  Image,
+  ScrollView,
+} from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { loadSession, saveSession } from "../state/session";
 import { pickAndPersistImage } from "../utils/imageStore";
-import { fetchGroup, updateGroupName } from "../api/groupsApi";
+import { fetchGroup, updateGroupName, listMyGroups, type GroupDto } from "../api/groupsApi";
 
 export default function GroupProfileScreen({ navigation }: any) {
   const [groupId, setGroupId] = useState<string | null>(null);
@@ -12,34 +21,42 @@ export default function GroupProfileScreen({ navigation }: any) {
   const [inviteCode, setInviteCode] = useState("");
   const [groupPhotoUri, setGroupPhotoUri] = useState<string | null>(null);
 
+  const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const refresh = async () => {
     const s = await loadSession();
     setGroupId(s.groupId);
     setGroupPhotoUri(s.groupPhotoUri || null);
 
-    if (!s.groupId) {
-      setGroupName(s.groupName || "");
-      setInviteCode(s.inviteCode || "");
-      return;
-    }
-
     try {
       setLoading(true);
-      const g = await fetchGroup(s.groupId);
 
-      setGroupName(g.name || "");
-      setInviteCode(g.inviteCode || "");
+      // 1) Load my groups (for switching UI)
+      const groups = await listMyGroups();
+      setMyGroups(groups);
 
-      // Keep session in sync (so other screens can display it)
-      await saveSession({
-        groupId: g.groupId,
-        groupName: g.name,
-        inviteCode: g.inviteCode,
-      });
+      // 2) Load current group details
+      if (s.groupId) {
+        const g = await fetchGroup(s.groupId);
+
+        setGroupName(g.name || "");
+        setInviteCode(g.inviteCode || "");
+
+        // Keep session in sync
+        await saveSession({
+          groupId: g.groupId,
+          groupName: g.name,
+          inviteCode: g.inviteCode,
+        });
+      } else {
+        // fallback to local if no selected group
+        setGroupName(s.groupName || "");
+        setInviteCode(s.inviteCode || "");
+      }
     } catch (e: any) {
-      // fallback to local if backend fails
+      // fallback to local session if server fails
       setGroupName(s.groupName || "");
       setInviteCode(s.inviteCode || "");
     } finally {
@@ -66,9 +83,7 @@ export default function GroupProfileScreen({ navigation }: any) {
     }
 
     if (!groupId) {
-      // no backend group yet — local only
-      await saveSession({ groupName: trimmed });
-      Alert.alert("Saved", "Group name updated (local).");
+      Alert.alert("No group selected", "You don’t have a current group selected.");
       return;
     }
 
@@ -100,8 +115,48 @@ export default function GroupProfileScreen({ navigation }: any) {
     Alert.alert("Copied", `Invite code copied: ${inviteCode}`);
   };
 
+  const onSwitchGroup = async (g: GroupDto) => {
+    if (!g?.groupId) return;
+    if (g.groupId === groupId) return;
+
+    try {
+      setSwitching(true);
+
+      await saveSession({
+        groupId: g.groupId,
+        groupName: g.name,
+        inviteCode: g.inviteCode,
+      });
+
+      setGroupId(g.groupId);
+      setGroupName(g.name || "");
+      setInviteCode(g.inviteCode || "");
+
+      // optional fresh fetch
+      try {
+        const fresh = await fetchGroup(g.groupId);
+        setGroupName(fresh.name || "");
+        setInviteCode(fresh.inviteCode || "");
+        await saveSession({ groupName: fresh.name, inviteCode: fresh.inviteCode });
+      } catch {}
+
+      // ✅ Tell the rest of the app to refresh
+      navigation.getParent()?.emit({ type: "groupChanged", data: { groupId: g.groupId } });
+
+      // ✅ Leave settings screen (feels natural)
+      navigation.goBack();
+
+      Alert.alert("Switched group", `You are now in ${g.name}.`);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  // If current group isn't in myGroups (can happen), still show it at top
+  const currentShownInList = groupId && myGroups.some((x) => x.groupId === groupId);
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
       <Text style={styles.h1}>Group Settings</Text>
 
       <View style={styles.card}>
@@ -125,28 +180,90 @@ export default function GroupProfileScreen({ navigation }: any) {
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Group name</Text>
         <TextInput value={groupName} onChangeText={setGroupName} style={styles.input} />
-        <Pressable style={styles.primaryBtn} onPress={onSaveName} disabled={loading}>
-          <Text style={styles.primaryText}>{loading ? "Saving..." : "Save name"}</Text>
+        <Pressable style={styles.primaryBtn} onPress={onSaveName} disabled={loading || switching}>
+          <Text style={styles.primaryText}>
+            {switching ? "Switching..." : loading ? "Saving..." : "Save name"}
+          </Text>
         </Pressable>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Invite code</Text>
         <Text style={styles.code}>{inviteCode || "—"}</Text>
-        <Pressable style={styles.secondaryBtn} onPress={onCopyCode}>
+        <Pressable style={styles.secondaryBtn} onPress={onCopyCode} disabled={switching}>
           <Text style={styles.secondaryText}>Copy invite code</Text>
         </Pressable>
       </View>
 
-      <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Switch groups</Text>
+
+        {switching ? <Text style={styles.small}>Switching…</Text> : null}
+
+        {loading && myGroups.length === 0 ? (
+          <Text style={styles.small}>Loading your groups…</Text>
+        ) : myGroups.length === 0 ? (
+          <Text style={styles.small}>You aren’t in any groups yet.</Text>
+        ) : (
+          <>
+            {!currentShownInList && groupId ? (
+              <View style={[styles.groupRow, styles.groupRowActive]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.groupRowTitle}>{groupName || "Current group"}</Text>
+                  <Text style={styles.groupRowMeta}>Invite code: {inviteCode || "—"}</Text>
+                </View>
+                <Text style={styles.groupRowChip}>Current</Text>
+              </View>
+            ) : null}
+
+            {myGroups.map((g) => {
+              const active = g.groupId === groupId;
+              return (
+                <Pressable
+                  key={g.groupId}
+                  style={[styles.groupRow, active && styles.groupRowActive]}
+                  onPress={() => onSwitchGroup(g)}
+                  disabled={switching}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.groupRowTitle, active && styles.groupRowTitleActive]}>
+                      {g.name}
+                    </Text>
+                    <Text style={[styles.groupRowMeta, active && styles.groupRowMetaActive]}>
+                      Invite code: {g.inviteCode}
+                    </Text>
+                  </View>
+                  <Text style={[styles.groupRowChip, active && styles.groupRowChipActive]}>
+                    {active ? "Current" : "Switch"}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </>
+        )}
+
+        <Pressable
+          style={styles.linkBtn}
+          onPress={() => navigation.navigate("Group")}
+          disabled={switching}
+        >
+          <Text style={styles.linkText}>Join / create another group</Text>
+        </Pressable>
+
+        <Pressable style={styles.linkBtn} onPress={refresh} disabled={switching}>
+          <Text style={styles.linkText}>Refresh</Text>
+        </Pressable>
+      </View>
+
+      <Pressable style={styles.backBtn} onPress={() => navigation.goBack()} disabled={switching}>
         <Text style={styles.backText}>Back</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, paddingTop: 40 },
+  container: { padding: 20, paddingTop: 40 },
   h1: { fontSize: 28, fontWeight: "900" },
 
   card: {
@@ -163,7 +280,7 @@ const styles = StyleSheet.create({
   groupPhoto: { width: 120, height: 120, borderRadius: 20 },
   groupPhotoPlaceholder: { backgroundColor: "#eee", alignItems: "center", justifyContent: "center" },
 
-  linkBtn: { marginTop: 10 },
+  linkBtn: { marginTop: 12 },
   linkText: { fontWeight: "900" },
 
   input: {
@@ -194,6 +311,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   secondaryText: { color: "#111", fontWeight: "900" },
+
+  small: { marginTop: 10, color: "#555", fontWeight: "700" },
+
+  groupRow: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "white",
+  },
+  groupRowActive: {
+    borderColor: "#111",
+  },
+  groupRowTitle: { fontSize: 16, fontWeight: "900", color: "#111" },
+  groupRowTitleActive: { color: "#111" },
+  groupRowMeta: { marginTop: 4, color: "#666", fontWeight: "700" },
+  groupRowMetaActive: { color: "#666" },
+
+  groupRowChip: { fontWeight: "900", color: "#111" },
+  groupRowChipActive: { fontWeight: "900", color: "#111" },
 
   backBtn: { marginTop: 20, alignItems: "center" },
   backText: { color: "#666", fontWeight: "800" },

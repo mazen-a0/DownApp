@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text } from "react-native";
 import { loadSession } from "../../state/session";
-import { setUserIdHeader } from "../../api/client";
+import { setUserIdHeader, clearUserIdHeader } from "../../api/client";
 
 export default function BootScreen({ navigation }: any) {
   const [status, setStatus] = useState("Booting…");
@@ -21,10 +21,9 @@ export default function BootScreen({ navigation }: any) {
         setStatus("Loading session…");
         const session = await loadSession();
 
-        // Set header for future API calls (after app restart)
-        if (session.userId) {
-          setUserIdHeader(session.userId);
-        }
+        // ✅ Always keep header correct
+        if (session.userId) setUserIdHeader(session.userId);
+        else clearUserIdHeader();
 
         setStatus(
           `Session loaded: userId=${session.userId ? "yes" : "no"}, groupId=${
@@ -50,6 +49,7 @@ export default function BootScreen({ navigation }: any) {
         clearTimeout(fallback);
         navigation.replace("Tabs");
       } catch (e: any) {
+        clearUserIdHeader();
         setStatus("Boot error — sending you to Name screen…");
         didNavigate = true;
         clearTimeout(fallback);

@@ -25,28 +25,19 @@ export default function NameScreen({ navigation }: any) {
       Alert.alert("Name required", "Please enter your name.");
       return;
     }
-
     if (loading) return;
+
     setLoading(true);
 
     try {
-      // If we already have a userId saved, don't create again — just proceed.
-      const existing = await loadSession();
-      if (existing.userId) {
-        setUserIdHeader(existing.userId);
-        await saveSession({ name: trimmed }); // let them update their display name locally
-        navigation.reset({ index: 0, routes: [{ name: "Group" }] });
-        return;
-      }
-
       // 1) stable device id
       const deviceId = await getOrCreateDeviceId();
 
-      // 2) create/update user in DB (upsert)
+      // 2) upsert user in DB (idempotent)
       const { userId } = await upsertUser({
         name: trimmed,
         deviceId,
-        pushToken: null, // later: real Expo token
+        pushToken: null,
       });
 
       // 3) set axios header for everything else
@@ -55,10 +46,11 @@ export default function NameScreen({ navigation }: any) {
       // 4) persist session
       await saveSession({ name: trimmed, userId });
 
-      // 5) go next
+      // 5) route based on whether they already have a group
+      const s = await loadSession();
       navigation.reset({
         index: 0,
-        routes: [{ name: "Group" }],
+        routes: [{ name: s.groupId ? "Tabs" : "Group" }],
       });
     } catch (e: any) {
       const msg = e?.response

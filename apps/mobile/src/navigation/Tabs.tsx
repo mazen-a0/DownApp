@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
@@ -12,6 +12,19 @@ const Tab = createBottomTabNavigator();
 
 export default function Tabs() {
   const navigation = useNavigation<any>();
+
+  useEffect(() => {
+    const unsub = navigation.addListener("groupChanged", () => {
+      // Force current tab to re-focus, which triggers your useFocusEffect(load)
+      // and refreshes data everywhere.
+      const state = navigation.getState();
+      const currentRoute = state.routes[state.index];
+      navigation.navigate(currentRoute.name);
+    });
+
+    return unsub;
+  }, [navigation]);
+
   return (
     <Tab.Navigator screenOptions={{ headerShown: true }}>
       <Tab.Screen name="Calendar" component={CalendarScreen} />

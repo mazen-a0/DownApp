@@ -1,13 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
-import { loadSession, saveSession, clearSession } from "../state/session";
+import { loadSession, clearSession } from "../state/session";
 import { api, API_BASE_URL } from "../api/client";
-
-const DEMO_USERS = [
-  { name: "Amir", userId: "u1" },
-  { name: "Ishita", userId: "u2" },
-  { name: "Evan", userId: "u3" },
-];
 
 export default function ProfileScreen({ navigation }: any) {
   const [name, setName] = useState<string | null>(null);
@@ -26,12 +20,6 @@ export default function ProfileScreen({ navigation }: any) {
   useEffect(() => {
     refresh();
   }, []);
-
-  const switchUser = async (u: { name: string; userId: string }) => {
-    await saveSession({ name: u.name, userId: u.userId });
-    await refresh();
-    Alert.alert("Switched!", `You are now ${u.name} (demo).`);
-  };
 
   const resetApp = async () => {
     Alert.alert(
@@ -58,7 +46,6 @@ export default function ProfileScreen({ navigation }: any) {
     } catch (e: any) {
       const status = e?.response?.status;
 
-      // If /health doesn't exist, try /
       if (status === 404) {
         try {
           const res2 = await api.get("/");
@@ -93,7 +80,7 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.label}>User ID</Text>
         <Text style={styles.value}>{userId || "—"}</Text>
 
-        <Text style={styles.label}>Group</Text>
+        <Text style={styles.label}>Current Group</Text>
         <Text style={styles.value}>{groupName || "—"}</Text>
 
         <Text style={styles.label}>Invite Code</Text>
@@ -103,18 +90,17 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.value}>{API_BASE_URL}</Text>
       </View>
 
+      <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate("GroupProfile")}>
+        <Text style={styles.primaryText}>Group settings</Text>
+      </Pressable>
+
+      <Pressable style={styles.secondaryBtn} onPress={() => navigation.navigate("Group")}>
+        <Text style={styles.secondaryText}>Switch / Join another group</Text>
+      </Pressable>
+
       <Pressable style={styles.pingBtn} onPress={pingApi}>
         <Text style={styles.pingText}>Ping API</Text>
       </Pressable>
-
-      <Text style={styles.sectionTitle}>Switch demo user</Text>
-      <View style={styles.row}>
-        {DEMO_USERS.map((u) => (
-          <Pressable key={u.userId} style={styles.pill} onPress={() => switchUser(u)}>
-            <Text style={styles.pillText}>{u.name}</Text>
-          </Pressable>
-        ))}
-      </View>
 
       <Pressable style={styles.resetBtn} onPress={resetApp}>
         <Text style={styles.resetText}>Reset app</Text>
@@ -143,6 +129,26 @@ const styles = StyleSheet.create({
   label: { marginTop: 10, fontSize: 13, color: "#666", fontWeight: "700" },
   value: { marginTop: 4, fontSize: 16, fontWeight: "700", color: "#111" },
 
+  primaryBtn: {
+    marginTop: 14,
+    backgroundColor: "black",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  primaryText: { color: "white", fontWeight: "900" },
+
+  secondaryBtn: {
+    marginTop: 10,
+    backgroundColor: "#f2f2f2",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e6e6e6",
+  },
+  secondaryText: { color: "#111", fontWeight: "900" },
+
   pingBtn: {
     marginTop: 12,
     backgroundColor: "#111",
@@ -152,21 +158,8 @@ const styles = StyleSheet.create({
   },
   pingText: { color: "white", fontWeight: "900" },
 
-  sectionTitle: { marginTop: 22, fontSize: 16, fontWeight: "800" },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
-
-  pill: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: "white",
-  },
-  pillText: { fontWeight: "800" },
-
   resetBtn: {
-    marginTop: 24,
+    marginTop: 18,
     backgroundColor: "#ffefef",
     borderWidth: 1,
     borderColor: "#ffcccc",

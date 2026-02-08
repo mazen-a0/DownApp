@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Alert } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import dayjs from "dayjs";
 
 import { repo, type Event } from "../repositories";
@@ -29,13 +30,19 @@ export default function LocationScreen() {
     load();
   }, []);
 
+  // ✅ Refresh when returning to this tab (ex: after switching groups)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load();
     setRefreshing(false);
   };
 
-  // Build "who is where" from hereIds
   const hereList: HereRecord[] = useMemo(() => {
     const out: HereRecord[] = [];
     for (const e of events) {
@@ -51,7 +58,6 @@ export default function LocationScreen() {
       }
     }
 
-    // Sort by place then name
     out.sort((a, b) => {
       const p = a.placeLabel.localeCompare(b.placeLabel);
       if (p !== 0) return p;
@@ -66,13 +72,11 @@ export default function LocationScreen() {
   }, [hereList, userId]);
 
   const doCheckIn = async (targetEventId: string) => {
-    // ✅ API mode: backend infers user from x-user-id, so do NOT pass userId
     await repo.checkIn(targetEventId);
     await load();
   };
 
   const doCheckout = async (targetEventId: string) => {
-    // ✅ API mode: backend infers user from x-user-id, so do NOT pass userId
     await repo.checkout(targetEventId);
     await load();
   };
@@ -80,13 +84,11 @@ export default function LocationScreen() {
   const onToggleHereForEvent = async (targetEventId: string, label: string) => {
     if (!userId) return;
 
-    // If I'm already here at THIS event -> checkout
     if (currentHereForMe?.eventId === targetEventId) {
       await doCheckout(targetEventId);
       return;
     }
 
-    // If I'm here somewhere else -> prompt switch
     if (currentHereForMe && currentHereForMe.eventId !== targetEventId) {
       Alert.alert(
         "Switch location?",
@@ -104,11 +106,9 @@ export default function LocationScreen() {
       return;
     }
 
-    // Otherwise just check in
     await doCheckIn(targetEventId);
   };
 
-  // A simple list of events that have a place (so location tab has actions)
   const eventsWithPlaces = useMemo(() => {
     return events
       .filter((e) => !!e.placeLabel)
