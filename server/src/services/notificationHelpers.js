@@ -3,6 +3,10 @@ const Group = require('../models/Group');
 
 // Send push notification via Expo
 async function sendPushNotification(pushToken, title, body, data = {}) {
+  if (process.env.DISABLE_PUSH_NOTIFICATIONS === 'true') {
+  return;
+}
+  
   if (!pushToken || !pushToken.startsWith('ExponentPushToken')) {
     console.log('Invalid push token:', pushToken);
     return;
