@@ -106,6 +106,75 @@ async function createPoke(pokeData) {
   return poke;
 }
 
+const Message = require('../models/Message');
+
+// List general group messages (eventId = null)
+async function listGeneralMessages({ groupId, limit = 200, before = null }) {
+  const query = { 
+    groupId, 
+    eventId: null 
+  };
+  
+  if (before) {
+    query.createdAt = { $lt: new Date(before) };
+  }
+  
+  return await Message.find(query)
+    .sort({ createdAt: 1 }) // ascending (oldest first)
+    .limit(limit)
+    .lean();
+}
+
+// List all event messages for a group (for thread previews)
+async function listEventsFeed({ groupId, limit = 500, since = null }) {
+  const query = { 
+    groupId,
+    eventId: { $ne: null } // not null = event messages only
+  };
+  
+  if (since) {
+    query.createdAt = { $gte: new Date(since) };
+  }
+  
+  return await Message.find(query)
+    .sort({ createdAt: 1 })
+    .limit(limit)
+    .lean();
+}
+
+// List messages for a specific event
+async function listEventMessages({ eventId, limit = 200, before = null }) {
+  const query = { eventId };
+  
+  if (before) {
+    query.createdAt = { $lt: new Date(before) };
+  }
+  
+  return await Message.find(query)
+    .sort({ createdAt: 1 })
+    .limit(limit)
+    .lean();
+}
+
+// Send a message (general or event)
+async function sendMessage({ groupId, eventId = null, userId, text }) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error('EMPTY_MESSAGE');
+  }
+  
+  const message = new Message({
+    groupId,
+    eventId: eventId || null,
+    fromUserId: userId,
+    text: trimmed
+  });
+  
+  await message.save();
+  return message.toObject();
+}
+
+// Export these
 module.exports = {
   createGroup,
   joinGroup,
@@ -116,5 +185,9 @@ module.exports = {
   checkOut,
   getEventsInRange,
   getGroupWithMembers,
-  createPoke
+  createPoke,
+  listGeneralMessages,
+  listEventsFeed,
+  listEventMessages,
+  sendMessage
 };

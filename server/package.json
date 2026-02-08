@@ -7,7 +7,7 @@
         "start": "node src/index.js",
         "dev": "nodemon src/index.js",
         "seed": "node src/utils/seed.js",
-        "view": "node src/utils/view.js"
+        "view": "node src/utils/view-data.js"
     },
     "keywords": [],
     "author": "Sofia Filippov",
