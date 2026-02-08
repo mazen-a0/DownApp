@@ -23,17 +23,25 @@ export type Session = {
 };
 
 export async function loadSession(): Promise<Session> {
-  const [userId, name, groupId, groupName, inviteCode, pushToken] =
-    await Promise.all([
-      AsyncStorage.getItem(KEYS.userId),
-      AsyncStorage.getItem(KEYS.name),
-      AsyncStorage.getItem(KEYS.groupId),
-      AsyncStorage.getItem(KEYS.groupName),
-      AsyncStorage.getItem(KEYS.inviteCode),
-      AsyncStorage.getItem(KEYS.pushToken),
-      AsyncStorage.getItem(KEYS.userPhotoUri),
-      AsyncStorage.getItem(KEYS.groupPhotoUri),
-    ]);
+  const [
+    userId,
+    name,
+    groupId,
+    groupName,
+    inviteCode,
+    pushToken,
+    userPhotoUri,
+    groupPhotoUri,
+  ] = await Promise.all([
+    AsyncStorage.getItem(KEYS.userId),
+    AsyncStorage.getItem(KEYS.name),
+    AsyncStorage.getItem(KEYS.groupId),
+    AsyncStorage.getItem(KEYS.groupName),
+    AsyncStorage.getItem(KEYS.inviteCode),
+    AsyncStorage.getItem(KEYS.pushToken),
+    AsyncStorage.getItem(KEYS.userPhotoUri),
+    AsyncStorage.getItem(KEYS.groupPhotoUri),
+  ]);
 
   return { userId, name, groupId, groupName, inviteCode, pushToken, userPhotoUri, groupPhotoUri };
 }
@@ -43,16 +51,22 @@ export async function saveSession(partial: Partial<Session>) {
 
   if (partial.userId !== undefined && partial.userId !== null)
     entries.push([KEYS.userId, partial.userId]);
+
   if (partial.name !== undefined && partial.name !== null)
     entries.push([KEYS.name, partial.name]);
+
   if (partial.groupId !== undefined && partial.groupId !== null)
     entries.push([KEYS.groupId, partial.groupId]);
+
   if (partial.groupName !== undefined && partial.groupName !== null)
     entries.push([KEYS.groupName, partial.groupName]);
+
   if (partial.inviteCode !== undefined && partial.inviteCode !== null)
     entries.push([KEYS.inviteCode, partial.inviteCode]);
+
   if (partial.pushToken !== undefined && partial.pushToken !== null)
     entries.push([KEYS.pushToken, partial.pushToken]);
+
   if (partial.userPhotoUri !== undefined && partial.userPhotoUri !== null)
     entries.push([KEYS.userPhotoUri, partial.userPhotoUri]);
 
