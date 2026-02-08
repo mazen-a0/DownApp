@@ -9,7 +9,8 @@ const User = require('../models/User');
 const Group = require('../models/Group');
 const Event = require('../models/Event');
 const Poke = require('../models/Poke');
-const { createGroup, createEvent, checkIn } = require('../services/dbHelpers');
+const groupsService = require("../services/groups.service");
+const eventsService = require("../services/events.service");
 
 async function seed() {
   await connectDB();

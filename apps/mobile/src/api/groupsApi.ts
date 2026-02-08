@@ -27,11 +27,7 @@ export async function updateGroupName(groupId: string, name: string): Promise<Gr
   return res.data as GroupDto;
 }
 
-/**
- * List groups the current user is a member of.
- * Backend infers user from x-user-id.
- */
 export async function listMyGroups(): Promise<GroupDto[]> {
-  const res = await api.get("/groups/me");
+  const res = await api.get("/groups/mine");
   return res.data as GroupDto[];
 }

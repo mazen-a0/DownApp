@@ -27,43 +27,40 @@ async function joinGroup(req, res, next) {
     res.json({
       groupId: group._id,
       name: group.name,
-      inviteCode: group.inviteCode, // ✅ add this
+      inviteCode: group.inviteCode, // frontend needs this
     });
   } catch (err) {
     next(err);
   }
 }
 
+// current group = first groupId on the user (MVP)
 async function getMyGroup(req, res, next) {
   try {
     const userId = req.userId;
 
     const group = await groupsService.getMyGroup({ userId });
 
-    // If user has no group yet
-    if (!group) {
-      return res.json({ group: null });
-    }
+    // Return either null or GroupDto directly (frontend-friendly)
+    if (!group) return res.json(null);
 
     res.json({
-      group: {
-        groupId: group._id,
-        name: group.name,
-        inviteCode: group.inviteCode,
-      },
+      groupId: group._id,
+      name: group.name,
+      inviteCode: group.inviteCode,
     });
   } catch (err) {
     next(err);
   }
 }
 
+// all groups user is in
 async function getMyGroups(req, res, next) {
   try {
     const userId = req.userId;
 
     const groups = await groupsService.getMyGroups({ userId });
 
-    // Always return an array (frontend expects GroupDto[])
     res.json(
       (groups || []).map((g) => ({
         groupId: g._id,
@@ -76,4 +73,48 @@ async function getMyGroups(req, res, next) {
   }
 }
 
-module.exports = { createGroup, joinGroup, getMyGroup, getMyGroups };
+async function fetchGroup(req, res, next) {
+  try {
+    const userId = req.userId;
+    const { groupId } = req.params;
+
+    const group = await groupsService.fetchGroup({ groupId, userId });
+
+    res.json({
+      groupId: group._id,
+      name: group.name,
+      inviteCode: group.inviteCode,
+      memberIds: group.memberIds || [],
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function updateGroupName(req, res, next) {
+  try {
+    const userId = req.userId;
+    const { groupId } = req.params;
+    const { name } = req.body;
+
+    const group = await groupsService.updateGroupName({ groupId, userId, name });
+
+    res.json({
+      groupId: group._id,
+      name: group.name,
+      inviteCode: group.inviteCode,
+      memberIds: group.memberIds || [],
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  createGroup,
+  joinGroup,
+  getMyGroup,
+  getMyGroups,
+  fetchGroup,
+  updateGroupName,
+};
