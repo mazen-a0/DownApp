@@ -1,6 +1,18 @@
 const mongoose = require("mongoose");
 const User = require("../models/User");
 
+function isValidExpoPushToken(token) {
+  return (
+    typeof token === "string" &&
+    (
+      token.startsWith("ExpoPushToken[") ||
+      token.startsWith("ExponentPushToken[")
+    ) &&
+    token.length > 20
+  );
+}
+
+
 async function upsertUser({ name, deviceId, pushToken }) {
   if (!deviceId || typeof deviceId !== "string") {
     const err = new Error("deviceId is required");
@@ -9,8 +21,15 @@ async function upsertUser({ name, deviceId, pushToken }) {
   }
 
   const update = {};
-  if (name && typeof name === "string") update.name = name.trim();
-  if (pushToken !== undefined) update.pushToken = pushToken;
+
+  if (name && typeof name === "string") {
+    update.name = name.trim();
+  }
+
+  // 🔒 Only store seeing real Expo tokens
+  if (isValidExpoPushToken(pushToken)) {
+    update.pushToken = pushToken;
+  }
 
   const user = await User.findOneAndUpdate(
     { deviceId },
@@ -20,6 +39,7 @@ async function upsertUser({ name, deviceId, pushToken }) {
 
   return user;
 }
+
 
 // ✅ NEW
 async function lookupUsersByIds(ids) {
