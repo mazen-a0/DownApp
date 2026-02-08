@@ -1,4 +1,4 @@
-const { upsertUser } = require("../services/users.service");
+const { upsertUser, lookupUsersByIds } = require("../services/users.service");
 const Event = require("../models/Event");
 
 async function createUser(req, res, next) {
@@ -42,4 +42,16 @@ async function getMyHere(req, res, next) {
   }
 }
 
-module.exports = { createUser, getMyHere };
+// ✅ NEW: POST /users/lookup  body: { ids: string[] }
+// returns: { users: { [id]: name } }
+async function lookupUsers(req, res, next) {
+  try {
+    const { ids } = req.body;
+    const users = await lookupUsersByIds(ids || []);
+    return res.json({ users });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createUser, getMyHere, lookupUsers };

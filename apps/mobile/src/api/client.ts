@@ -2,7 +2,7 @@ import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
 import { loadSession } from "../state/session";
 
-export const API_BASE_URL = "http://10.122.74.204:3000";
+export const API_BASE_URL = "http://10.122.210.113:3000";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

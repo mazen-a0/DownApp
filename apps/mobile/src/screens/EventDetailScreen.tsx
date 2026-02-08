@@ -16,7 +16,7 @@ import dayjs from "dayjs";
 import { repo, chatRepo, type Event, type Message } from "../repositories";
 import { getUserIdOrThrow } from "../state/getUser";
 import { getGroupIdOrThrow } from "../state/getGroup";
-import { nameForUserId } from "../utils/userNames";
+import { nameForUserId, ensureUserNames } from "../state/userNames";
 
 export default function EventDetailScreen({ route, navigation }: any) {
   const routeEventId = route?.params?.eventId ?? route?.params?.id;
@@ -36,28 +36,37 @@ export default function EventDetailScreen({ route, navigation }: any) {
         repo.listEvents(),
       ]);
 
-      setUserId(uid);
-      setGroupId(gid);
-
       const found =
         events.find((e: any) => e.eventId === routeEventId || (e as any).id === routeEventId) ||
         null;
 
-      setEvent(found);
-
+      let msgs: Message[] = [];
       try {
         if (routeEventId) {
-          const msgs = await chatRepo.listEventMessages(gid, routeEventId);
-          setMessages(msgs);
-        } else {
-          setMessages([]);
+          msgs = await chatRepo.listEventMessages(gid, routeEventId);
         }
       } catch {
-        setMessages([]);
+        msgs = [];
       }
+
+      // ✅ Preload names BEFORE setting state (so render immediately shows names)
+      const idsToResolve = [
+        uid,
+        ...(found?.participantIds ?? []),
+        ...(found?.hereIds ?? []),
+        ...msgs.map((m) => m.fromUserId),
+      ].filter(Boolean) as string[];
+
+      await ensureUserNames(idsToResolve);
+
+      setUserId(uid);
+      setGroupId(gid);
+      setEvent(found);
+      setMessages(msgs);
     } catch (err) {
       console.log("EventDetail load error:", err);
       setEvent(null);
+      setMessages([]);
     }
   };
 
@@ -92,7 +101,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const onToggleDown = async () => {
     if (!userId) return;
 
-    // API mode: backend infers user from x-user-id, so do NOT pass userId
     if (isDown) await repo.leaveEvent(event.eventId);
     else await repo.joinEvent(event.eventId);
 
@@ -119,7 +127,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
       return;
     }
 
-    // local helper: scans today's events and checks hereIds
     const current = await repo.getCurrentHereEvent(userId);
 
     if (current && current.eventId !== event.eventId) {
@@ -142,7 +149,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const onPoke = async (toUserId: string) => {
     if (!userId) return;
 
-    // still demo/local for now unless backend has pokes
     await repo.poke(event.eventId, userId, toUserId, "Back to work 😤");
     Alert.alert("Poked!", `Sent a poke to ${nameForUserId(toUserId)} (demo).`);
   };
@@ -165,10 +171,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const downOthers = event.participantIds.filter((id) => id !== userId);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1 }}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.container}
@@ -219,10 +222,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </View>
 
         <View style={{ marginTop: 10 }}>
-          <Button
-            title={isHere ? "Check out (I'm not here)" : "I'm here! 📍"}
-            onPress={onToggleHere}
-          />
+          <Button title={isHere ? "Check out (I'm not here)" : "I'm here! 📍"} onPress={onToggleHere} />
         </View>
 
         {downOthers.length === 0 ? (

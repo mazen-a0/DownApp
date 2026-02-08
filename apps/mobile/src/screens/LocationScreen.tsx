@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 
 import { repo, type Event } from "../repositories";
 import { getUserIdOrThrow } from "../state/getUser";
-import { nameForUserId } from "../utils/userNames";
+import { nameForUserId, ensureUserNames } from "../state/userNames";
 
 type HereRecord = {
   userId: string;
@@ -21,10 +21,23 @@ export default function LocationScreen() {
   const [userId, setUserId] = useState<string>("");
 
   const load = async () => {
-    const [uid, list] = await Promise.all([getUserIdOrThrow(), repo.listEvents()]);
-    setUserId(uid);
-    setEvents(list);
-  };
+  const [uid, list] = await Promise.all([getUserIdOrThrow(), repo.listEvents()]);
+
+  // ✅ collect all IDs we might display
+  const idsToResolve = [
+    uid,
+    ...list.flatMap((e) => [...(e.participantIds || []), ...(e.hereIds || [])]),
+  ].filter(Boolean) as string[];
+
+  try {
+    await ensureUserNames(idsToResolve);
+  } catch {
+    // don't block UI if lookup fails
+  }
+
+  setUserId(uid);
+  setEvents(list);
+};
 
   useEffect(() => {
     load();
