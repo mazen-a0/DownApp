@@ -2,12 +2,17 @@ import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text } from "react-native";
 import { loadSession } from "../../state/session";
 import { setUserIdHeader, clearUserIdHeader } from "../../api/client";
+import { setupNotificationListeners } from "../../utils/pushNotifications"; // ✅ ADD THIS
+
 
 export default function BootScreen({ navigation }: any) {
   const [status, setStatus] = useState("Booting…");
 
   useEffect(() => {
     let didNavigate = false;
+
+    // NEW: Setup notification listeners immediately (before we know if user is logged in)
+    const cleanupNotifications = setupNotificationListeners(navigation);
 
     const fallback = setTimeout(() => {
       if (!didNavigate) {
@@ -57,7 +62,10 @@ export default function BootScreen({ navigation }: any) {
       }
     })();
 
-    return () => clearTimeout(fallback);
+    return () => {
+      clearTimeout(fallback);
+      cleanupNotifications(); // NEW: CLEANUP NOTIFICATION LISTENERS
+    };
   }, [navigation]);
 
   return (

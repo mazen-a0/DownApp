@@ -1,5 +1,8 @@
 const Group = require("../models/Group");
 const Event = require("../models/Event");
+const User = require("../models/User");
+
+const { notifyUser, notifyGroup, notifyEventParticipants } = require('./notificationHelpers');
 
 function asStr(x) {
   return String(x);
@@ -80,6 +83,30 @@ async function createEvent({ userId, payload }) {
     hereIds: [],
   });
 
+  try {
+    const creator = await User.findById(userId).select('name');
+    const startTime = new Date(startAt).toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit' 
+    });
+    
+    // NEW EVENT NOTIFICATION: notify all group members about the new event
+    await notifyGroup(
+      groupId,
+      userId,
+      `${creator.name} created an event`,
+      `${title} at ${startTime}`,
+      {
+        type: 'new_event',
+        eventId: event._id.toString(),
+        groupId: groupId.toString()
+      }
+    );
+  } catch (notifError) {
+    console.error('Failed to send new event notification:', notifError);
+    // Don't fail the request if notification fails
+  }
+
   return event;
 }
 
@@ -97,6 +124,25 @@ async function joinEvent({ userId, eventId }) {
     { _id: eventId },
     { $addToSet: { participantIds: userId } }
   );
+
+  // NEW JOIN NOTIFICATION: notify existing event participants that someone new joined
+  try {
+    const user = await User.findById(userId).select('name');
+    
+    await notifyEventParticipants(
+      event,
+      userId,
+      `${user.name} is down!`,
+      `for ${event.title}`,
+      {
+        type: 'join_event',
+        eventId: eventId.toString(),
+        userId: userId.toString()
+      }
+    );
+  } catch (notifError) {
+    console.error('Failed to send join event notification:', notifError);
+  }
 }
 
 async function leaveEvent({ userId, eventId }) {
@@ -133,7 +179,7 @@ async function checkInEvent({ userId, eventId }) {
     throw err;
   }
 
-  // ✅ exclusivity: remove from all other events in same group
+  // exclusivity: remove from all other events in same group
   await Event.updateMany(
     { groupId: event.groupId },
     { $pull: { hereIds: userId } }
@@ -144,6 +190,26 @@ async function checkInEvent({ userId, eventId }) {
     { _id: eventId },
     { $addToSet: { hereIds: userId } }
   );
+
+  // NEW CHECK-IN NOTIFICATION: notify event participants that someone checked in
+  try {
+    const user = await User.findById(userId).select('name');
+    
+    await notifyEventParticipants(
+      event,
+      userId,
+      `${user.name} is here!`,
+      event.placeLabel || event.title,
+      {
+        type: 'check_in',
+        eventId: eventId.toString(),
+        userId: userId.toString(),
+        place: event.placeLabel || null
+      }
+    );
+  } catch (notifError) {
+    console.error('Failed to send check-in notification:', notifError);
+  }
 }
 
 async function checkOutEvent({ userId, eventId }) {
@@ -185,7 +251,27 @@ async function createPoke({ fromUserId, toUserId, eventId, message }) {
     message,
     createdAt: new Date(),
   });
+
+  // NEW POKE NOTIFICATION: notify the user that they got poked
+  try {
+    const fromUser = await User.findById(fromUserId).select('name');
+    
+    await notifyUser(
+      toUserId,
+      `${fromUser.name} poked you!`,
+      message || 'Back to work 😤',
+      {
+        type: 'poke',
+        eventId: eventId.toString(),
+        fromUserId: fromUserId.toString()
+      }
+    );
+  } catch (notifError) {
+    console.error('Failed to send poke notification:', notifError);
+  }
 }
+
+
 
 
 module.exports = {

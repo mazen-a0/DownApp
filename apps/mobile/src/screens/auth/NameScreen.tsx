@@ -14,6 +14,7 @@ import { saveSession, loadSession } from "../../state/session";
 import { upsertUser } from "../../api/usersApi";
 import { getOrCreateDeviceId } from "../../state/device";
 import { setUserIdHeader } from "../../api/client";
+import { registerForPushNotifications } from "../../utils/pushNotifications";
 
 export default function NameScreen({ navigation }: any) {
   const [name, setName] = useState("");
@@ -33,20 +34,30 @@ export default function NameScreen({ navigation }: any) {
       // 1) stable device id
       const deviceId = await getOrCreateDeviceId();
 
-      // 2) upsert user in DB (idempotent)
+      // NEW: 2) Get push token
+    const pushToken = await registerForPushNotifications();
+    if (pushToken) {
+      console.log('📱 Got push token:', pushToken);
+    }
+
+      // 3) upsert user in DB (idempotent)
       const { userId } = await upsertUser({
         name: trimmed,
         deviceId,
-        pushToken: null,
+        pushToken,
       });
 
-      // 3) set axios header for everything else
+      // 4) set axios header for everything else
       setUserIdHeader(userId);
 
-      // 4) persist session
-      await saveSession({ name: trimmed, userId });
+      // 5) persist session
+      await saveSession({ 
+        name: trimmed, 
+        userId,
+        pushToken
+      });
 
-      // 5) route based on whether they already have a group
+      // 6) route based on whether they already have a group
       const s = await loadSession();
       navigation.reset({
         index: 0,
