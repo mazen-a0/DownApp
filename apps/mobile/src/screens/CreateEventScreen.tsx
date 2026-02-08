@@ -1,7 +1,16 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  Alert,
+  Platform,
+  Modal,
+} from "react-native";
 import dayjs from "dayjs";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { repo, type EventTag } from "../repositories";
 
@@ -9,6 +18,8 @@ const TAGS: EventTag[] = ["study", "library", "food", "bar", "club", "stay_in", 
 
 // Keep it small for MVP — you can expand later
 const EMOJIS = ["📚", "☕️", "🍔", "🍻", "🕺", "🏠", "🏋️", "🎮", "🧠", "📌", "🍃"];
+
+type Picking = "start" | "end" | null;
 
 export default function CreateEventScreen({ navigation }: any) {
   const [title, setTitle] = useState("Down to study");
@@ -22,38 +33,68 @@ export default function CreateEventScreen({ navigation }: any) {
   const [startAt, setStartAt] = useState<Date>(dayjs().add(1, "hour").toDate());
   const [endAt, setEndAt] = useState<Date>(dayjs().add(2, "hour").toDate());
 
-  // Picker UI state
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+  // ✅ iOS-friendly picker flow with Done/Cancel
+  const [picking, setPicking] = useState<Picking>(null);
+  const [tempTime, setTempTime] = useState<Date>(startAt);
 
   const startLabel = useMemo(() => dayjs(startAt).format("h:mm A"), [startAt]);
   const endLabel = useMemo(() => dayjs(endAt).format("h:mm A"), [endAt]);
 
-  const onChangeStart = (_e: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS !== "ios") setShowStartPicker(false);
-    if (!selected) return;
-
-    setStartAt(selected);
-
-    // keep end >= start + 30m (nice UX)
-    const minEnd = dayjs(selected).add(30, "minute").toDate();
-    if (endAt.getTime() < minEnd.getTime()) {
-      setEndAt(dayjs(selected).add(1, "hour").toDate());
-    }
+  const openStartPicker = () => {
+    setTempTime(startAt);
+    setPicking("start");
   };
 
-  const onChangeEnd = (_e: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS !== "ios") setShowEndPicker(false);
+  const openEndPicker = () => {
+    setTempTime(endAt);
+    setPicking("end");
+  };
+
+  const closePicker = () => setPicking(null);
+
+  const onDonePicker = () => {
+    if (picking === "start") {
+      const nextStart = tempTime;
+      setStartAt(nextStart);
+
+      // keep end >= start + 30m (nice UX)
+      const minEndMs = nextStart.getTime() + 30 * 60 * 1000;
+      if (endAt.getTime() < minEndMs) {
+        setEndAt(new Date(nextStart.getTime() + 60 * 60 * 1000));
+      }
+    } else if (picking === "end") {
+      setEndAt(tempTime);
+    }
+
+    closePicker();
+  };
+
+  // Android can keep the old behavior (tap -> picker -> auto closes)
+  const onAndroidChange = (_e: any, selected?: Date) => {
     if (!selected) return;
-    setEndAt(selected);
+
+    if (picking === "start") {
+      setPicking(null);
+      setStartAt(selected);
+
+      const minEnd = new Date(selected.getTime() + 30 * 60 * 1000);
+      if (endAt.getTime() < minEnd.getTime()) {
+        setEndAt(new Date(selected.getTime() + 60 * 60 * 1000));
+      }
+    }
+
+    if (picking === "end") {
+      setPicking(null);
+      setEndAt(selected);
+    }
   };
 
   const onCreate = async () => {
     try {
       const trimmedTitle = title.trim() || "Down";
 
-    if (endAt.getTime() <= startAt.getTime()) {
-          Alert.alert("Invalid time", "End time must be after start time.");
+      if (endAt.getTime() <= startAt.getTime()) {
+        Alert.alert("Invalid time", "End time must be after start time.");
         return;
       }
 
@@ -63,12 +104,14 @@ export default function CreateEventScreen({ navigation }: any) {
         startAt: startAt.toISOString(),
         endAt: endAt.toISOString(),
         placeLabel: placeLabel.trim() || undefined,
-        emoji, // ✅ NEW
+        emoji,
       });
 
       navigation.goBack();
     } catch (e: any) {
-      const msg = e?.response ? `${e.response.status}: ${JSON.stringify(e.response.data)}` : e?.message;
+      const msg = e?.response
+        ? `${e.response.status}: ${JSON.stringify(e.response.data)}`
+        : e?.message;
       Alert.alert("Error", msg || "Failed to create event");
     }
   };
@@ -97,34 +140,68 @@ export default function CreateEventScreen({ navigation }: any) {
       <TextInput value={placeLabel} onChangeText={setPlaceLabel} style={styles.input} />
 
       <Text style={styles.label}>Time</Text>
-
       <View style={styles.timeRow}>
-        <Pressable style={styles.timeBtn} onPress={() => setShowStartPicker(true)}>
+        <Pressable
+          style={styles.timeBtn}
+          onPress={() => {
+            if (Platform.OS === "android") setPicking("start");
+            else openStartPicker();
+          }}
+        >
           <Text style={styles.timeBtnText}>Start: {startLabel}</Text>
         </Pressable>
 
-        <Pressable style={styles.timeBtn} onPress={() => setShowEndPicker(true)}>
+        <Pressable
+          style={styles.timeBtn}
+          onPress={() => {
+            if (Platform.OS === "android") setPicking("end");
+            else openEndPicker();
+          }}
+        >
           <Text style={styles.timeBtnText}>End: {endLabel}</Text>
         </Pressable>
       </View>
 
-      {/* Pickers */}
-      {showStartPicker ? (
+      {/* ✅ ANDROID: inline picker auto-closes */}
+      {Platform.OS === "android" && picking ? (
         <DateTimePicker
-          value={startAt}
+          value={picking === "start" ? startAt : endAt}
           mode="time"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={onChangeStart}
+          display="default"
+          onChange={onAndroidChange}
         />
       ) : null}
 
-      {showEndPicker ? (
-        <DateTimePicker
-          value={endAt}
-          mode="time"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={onChangeEnd}
-        />
+      {/* ✅ IOS: Modal with Cancel/Done */}
+      {Platform.OS === "ios" ? (
+        <Modal visible={!!picking} transparent animationType="fade">
+          <Pressable style={styles.modalBackdrop} onPress={closePicker} />
+
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>
+              {picking === "start" ? "Select start time" : "Select end time"}
+            </Text>
+
+            <DateTimePicker
+              value={tempTime}
+              mode="time"
+              display="spinner"
+              onChange={(_e, selected) => {
+                if (selected) setTempTime(selected);
+              }}
+            />
+
+            <View style={styles.modalBtns}>
+              <Pressable style={styles.modalBtn} onPress={closePicker}>
+                <Text style={styles.modalBtnText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={onDonePicker}>
+                <Text style={[styles.modalBtnText, styles.modalBtnTextPrimary]}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       ) : null}
 
       <Text style={styles.label}>Tag</Text>
@@ -204,4 +281,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: { color: "white", fontWeight: "700", fontSize: 16 },
+
+  // ✅ iOS modal picker
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
+  modalSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "white",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+  },
+  modalTitle: { fontSize: 16, fontWeight: "800", marginBottom: 10 },
+  modalBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 12,
+  },
+  modalBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  modalBtnPrimary: { backgroundColor: "#111", borderColor: "#111" },
+  modalBtnText: { fontWeight: "800" },
+  modalBtnTextPrimary: { color: "white" },
 });
