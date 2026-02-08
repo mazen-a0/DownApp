@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
     borderRadius: 14,
     overflow: "hidden",
-    backgroundColor: "white",
+    backgroundColor: "#BAF2E9",
   },
   tabBtn: { flex: 1, paddingVertical: 10, alignItems: "center" },
   tabBtnActive: { backgroundColor: "#111" },
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 999,
   },
-  sendText: { color: "white", fontWeight: "900" },
+  sendText: { color: "#BAF2E9", fontWeight: "900" },
 
   threadRow: {
     flexDirection: "row",

@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 
 import CalendarScreen from "../screens/CalendarScreen";
 import ChatScreen from "../screens/ChatScreen";
@@ -26,7 +27,39 @@ export default function Tabs() {
   }, [navigation]);
 
   return (
-    <Tab.Navigator screenOptions={{ headerShown: true }}>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: "#BAF2E9", // same light teal as tab bar
+        },
+        headerTitleStyle: {
+          color: "#0F172A", // dark slate text for contrast
+          fontWeight: "600",
+        },
+        headerTintColor: "#14B8A6", // teal for back buttons / icons
+        tabBarActiveTintColor: "#2DD4BF", // light teal (active)
+        tabBarInactiveTintColor: "#94A3B8", // soft gray (inactive)
+        tabBarStyle: {
+          backgroundColor: "#ECFEFF", // very light teal background
+          borderTopColor: "#99F6E4", // subtle teal border
+        },
+        tabBarIcon: ({ color, size }) => {
+          let name: keyof typeof Ionicons.glyphMap = "ellipse";
+
+          if (route.name === "Calendar") name = "calendar-outline";
+          if (route.name === "Chat") name = "chatbubble-ellipses-outline";
+          if (route.name === "Add") name = "add-circle-outline";
+          if (route.name === "Location") name = "location-outline";
+          if (route.name === "Profile") name = "person-circle-outline";
+
+          // Make the Add icon a bit bigger
+          const finalSize = route.name === "Add" ? size + 8 : size;
+
+          return <Ionicons name={name} size={finalSize} color={color} />;
+        },
+      })}
+    >
       <Tab.Screen name="Calendar" component={CalendarScreen} />
       <Tab.Screen name="Chat" component={ChatScreen} />
 
@@ -38,6 +71,10 @@ export default function Tabs() {
             e.preventDefault();
             navigation.navigate("CreateEvent");
           },
+        }}
+        options={{
+          // optional: hide label under the + button
+          tabBarLabel: "",
         }}
       />
 
