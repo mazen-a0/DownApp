@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { loadSession, clearSession } from "../state/session";
 import { api, API_BASE_URL } from "../api/client";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
 
 export default function ProfileScreen({ navigation }: any) {
   const [name, setName] = useState<string | null>(null);
@@ -16,6 +18,12 @@ export default function ProfileScreen({ navigation }: any) {
     setGroupName(s.groupName);
     setInviteCode(s.inviteCode);
   };
+  
+  useFocusEffect(
+  useCallback(() => {
+    refresh();
+  }, [])
+);
 
   useEffect(() => {
     refresh();
