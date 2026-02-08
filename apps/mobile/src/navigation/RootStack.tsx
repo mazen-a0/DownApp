@@ -10,15 +10,13 @@ import GroupScreen from "../screens/auth/GroupScreen";
 import CreateEventScreen from "../screens/CreateEventScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
 
-import type { Event } from "../data/demoEvents";
-
 export type RootStackParamList = {
   Boot: undefined;
   Name: undefined;
   Group: undefined;
   Tabs: undefined;
   CreateEvent: undefined;
-  EventDetail: { event: Event };
+  EventDetail: { eventId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -26,31 +24,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootStack() {
   return (
     <Stack.Navigator initialRouteName="Boot">
-      <Stack.Screen
-        name="Boot"
-        component={BootScreen}
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="Boot" component={BootScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Name" component={NameScreen} options={{ title: "Your name" }} />
       <Stack.Screen name="Group" component={GroupScreen} options={{ title: "Group" }} />
 
-      <Stack.Screen
-        name="Tabs"
-        component={Tabs}
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
 
-      <Stack.Screen
-        name="CreateEvent"
-        component={CreateEventScreen}
-        options={{ title: "New Event" }}
-      />
+      <Stack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "New Event" }} />
 
-      <Stack.Screen
-        name="EventDetail"
-        component={EventDetailScreen}
-        options={{ title: "Event" }}
-      />
+      <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
     </Stack.Navigator>
   );
 }

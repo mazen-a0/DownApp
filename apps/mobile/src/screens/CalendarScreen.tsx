@@ -1,21 +1,36 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, Pressable } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl } from "react-native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import dayjs from "dayjs";
 
-import { fetchEventsForToday } from "../api/events";
-import type { Event } from "../data/demoEvents";
+import { repo, Event } from "../repositories";
 
 export default function CalendarScreen() {
   const navigation = useNavigation<any>();
   const [events, setEvents] = useState<Event[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = async () => {
+    const data = await repo.listEvents();
+    setEvents(data);
+  };
 
   useEffect(() => {
-    (async () => {
-      const data = await fetchEventsForToday();
-      setEvents(data);
-    })();
+    load();
   }, []);
+
+  // Refresh when you come back from CreateEvent or EventDetail
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -24,15 +39,14 @@ export default function CalendarScreen() {
       <FlatList
         data={events}
         keyExtractor={(item) => item.eventId}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => {
-          const time = `${dayjs(item.startAt).format("h:mm A")}–${dayjs(
-            item.endAt
-          ).format("h:mm A")}`;
+          const time = `${dayjs(item.startAt).format("h:mm A")}–${dayjs(item.endAt).format("h:mm A")}`;
 
           return (
             <Pressable
-              onPress={() => navigation.navigate("EventDetail", { event: item })}
+              onPress={() => navigation.navigate("EventDetail", { eventId: item.eventId })}
               style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             >
               <View style={styles.card}>
