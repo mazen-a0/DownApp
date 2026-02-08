@@ -1,4 +1,5 @@
 const { upsertUser } = require("../services/users.service");
+const Event = require("../models/Event");
 
 async function createUser(req, res, next) {
   try {
@@ -15,4 +16,30 @@ async function createUser(req, res, next) {
   }
 }
 
-module.exports = { createUser };
+async function getMyHere(req, res, next) {
+  try {
+    const userId = req.userId;
+
+    const event = await Event.findOne({ hereIds: userId }).sort({ startAt: -1 });
+
+    if (!event) {
+      return res.json({ event: null });
+    }
+
+    res.json({
+      event: {
+        eventId: event._id,
+        groupId: event.groupId,
+        title: event.title,
+        tag: event.tag,
+        placeLabel: event.placeLabel || null,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString(),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createUser, getMyHere };
