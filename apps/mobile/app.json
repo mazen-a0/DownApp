@@ -31,7 +31,7 @@
         "projectId": "389d2d07-48c6-45a1-8d9e-9b5f7b72b7c5"
       }
     },
-    "owner": "sophiemcb"
+    "owner": "sophiemcb",
     "plugins": [
       "expo-font"
     ]
