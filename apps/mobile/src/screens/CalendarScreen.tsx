@@ -19,7 +19,6 @@ export default function CalendarScreen() {
     load();
   }, []);
 
-  // Refresh when you come back from CreateEvent or EventDetail
   useFocusEffect(
     useCallback(() => {
       load();
@@ -43,6 +42,7 @@ export default function CalendarScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => {
           const time = `${dayjs(item.startAt).format("h:mm A")}–${dayjs(item.endAt).format("h:mm A")}`;
+          const emoji = item.emoji || "📌";
 
           return (
             <Pressable
@@ -50,7 +50,11 @@ export default function CalendarScreen() {
               style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             >
               <View style={styles.card}>
-                <Text style={styles.title}>{item.title}</Text>
+                <View style={styles.titleRow}>
+                  <Text style={styles.emoji}>{emoji}</Text>
+                  <Text style={styles.title}>{item.title}</Text>
+                </View>
+
                 <Text style={styles.meta}>
                   {time} • {item.tag}
                   {item.placeLabel ? ` • ${item.placeLabel}` : ""}
@@ -78,6 +82,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: "#BAF2E9",
   },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  emoji: { fontSize: 22 },
   title: { fontSize: 18, fontWeight: "700" },
   meta: { marginTop: 6, color: "#555" },
 });

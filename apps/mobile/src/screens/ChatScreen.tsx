@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -31,6 +31,9 @@ type ThreadRow = {
 export default function ChatScreen() {
   const navigation = useNavigation<any>();
 
+  const lastGeneralAtRef = useRef<string | null>(null);
+  const generalListRef = useRef<FlatList>(null);
+
   const [tab, setTab] = useState<TabKey>("general");
   const [userId, setUserId] = useState<string>("");
   const [groupId, setGroupId] = useState<string>("");
@@ -42,11 +45,14 @@ export default function ChatScreen() {
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [text, setText] = useState("");
 
-  const generalListRef = useRef<FlatList>(null);
+  const scrollGeneralToBottom = (animated: boolean) => {
+    setTimeout(() => {
+      generalListRef.current?.scrollToEnd({ animated });
+    }, 60);
+  };
 
   const buildThreads = (evts: Event[], feed: Message[]): ThreadRow[] => {
     const latestByEvent: Record<string, Message> = {};
-
     for (const m of feed) {
       if (!m.eventId) continue;
       const existing = latestByEvent[m.eventId];
@@ -79,12 +85,6 @@ export default function ChatScreen() {
     return rows;
   };
 
-  const scrollGeneralToBottom = (animated: boolean) => {
-    setTimeout(() => {
-      generalListRef.current?.scrollToEnd({ animated });
-    }, 60);
-  };
-
   const load = useCallback(async () => {
     const [gid, uid, evts] = await Promise.all([
       getGroupIdOrThrow(),
@@ -97,11 +97,19 @@ export default function ChatScreen() {
     setEvents(evts);
 
     const [g, ef] = await Promise.all([
-      chatRepo.listGeneralMessages(gid),
+      // IMPORTANT: normal full load
+      (chatRepo as any).listGeneralMessages(gid),
       chatRepo.listEventsFeed(gid),
     ]);
 
-    setGeneral(g);
+    // ensure sorted oldest -> newest
+    const sortedG = [...g].sort(
+      (a: Message, b: Message) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    setGeneral(sortedG);
+    lastGeneralAtRef.current = sortedG.length ? sortedG[sortedG.length - 1].createdAt : null;
+
     setEventsFeed(ef);
     setThreads(buildThreads(evts, ef));
 
@@ -112,7 +120,6 @@ export default function ChatScreen() {
     load();
   }, [load]);
 
-  // ✅ Key for group switching: always reload when tab/screen regains focus
   useFocusEffect(
     useCallback(() => {
       load();
@@ -123,22 +130,79 @@ export default function ChatScreen() {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // ✅ Always pull freshest ids (prevents stale groupId after switching groups)
     const [gid, uid] = await Promise.all([getGroupIdOrThrow(), getUserIdOrThrow()]);
 
-    // ✅ API should infer user from x-user-id, but demo repo might want fromUserId.
-    // We send a payload that works either way without TS breaking.
-    await (chatRepo as any).sendMessage({
+    const optimistic: Message = {
+      messageId: `tmp-${Date.now()}`,
       groupId: gid,
       eventId: null,
+      fromUserId: uid,
       text: trimmed,
-      fromUserId: uid, // backend can ignore; demo can use it
+      createdAt: new Date().toISOString(),
+    };
+
+    setGeneral((prev) => {
+      const merged = [...prev, optimistic];
+      merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      return merged;
     });
 
     setText("");
-    await load();
     scrollGeneralToBottom(true);
+
+    try {
+      const saved = await (chatRepo as any).sendMessage({
+        groupId: gid,
+        eventId: null,
+        text: trimmed,
+        fromUserId: uid,
+      });
+
+      setGeneral((prev) => {
+        const withoutTmp = prev.filter((m) => m.messageId !== optimistic.messageId);
+        const merged = [...withoutTmp, saved];
+        merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        return merged;
+      });
+
+      lastGeneralAtRef.current = saved.createdAt;
+      scrollGeneralToBottom(true);
+    } catch {
+      setGeneral((prev) => prev.filter((m) => m.messageId !== optimistic.messageId));
+    }
   };
+
+  // ✅ polling: pulls only messages after lastGeneralAtRef
+  useEffect(() => {
+    if (tab !== "general") return;
+    if (!groupId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const since = lastGeneralAtRef.current;
+        if (!since) return;
+
+        // IMPORTANT: this must exist in chatRepo (see repo change below)
+        const newer: Message[] = await (chatRepo as any).listGeneralMessages(groupId, { since });
+
+        if (newer && newer.length) {
+          setGeneral((prev) => {
+            const existingIds = new Set(prev.map((m) => m.messageId));
+            const merged = [...prev, ...newer.filter((m) => !existingIds.has(m.messageId))];
+            merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            return merged;
+          });
+
+          lastGeneralAtRef.current = newer[newer.length - 1].createdAt;
+          scrollGeneralToBottom(false);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [tab, groupId]);
 
   const renderGeneralBubble = ({ item }: { item: Message }) => {
     const mine = item.fromUserId === userId;
@@ -157,7 +221,7 @@ export default function ChatScreen() {
 
   const renderThread = ({ item }: { item: ThreadRow }) => {
     const time = item.lastAt ? dayjs(item.lastAt).format("h:mm A") : "";
-    const subtitleParts = [];
+    const subtitleParts: string[] = [];
     if (item.placeLabel) subtitleParts.push(item.placeLabel);
     if (item.tag) subtitleParts.push(item.tag);
     const subtitle = subtitleParts.join(" • ");
@@ -193,10 +257,6 @@ export default function ChatScreen() {
     );
   };
 
-  useEffect(() => {
-    if (tab === "general") scrollGeneralToBottom(false);
-  }, [tab]);
-
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <View style={styles.container}>
@@ -228,13 +288,6 @@ export default function ChatScreen() {
               style={{ flex: 1 }}
               contentContainerStyle={{ paddingVertical: 12, paddingBottom: 12 }}
               showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={{ padding: 16 }}>
-                  <Text style={{ color: "#666", fontWeight: "700" }}>
-                    No messages yet. Send one to start the group chat.
-                  </Text>
-                </View>
-              }
             />
 
             <View style={styles.inputWrap}>
@@ -260,18 +313,7 @@ export default function ChatScreen() {
               style={{ flex: 1, marginTop: 8 }}
               contentContainerStyle={{ paddingBottom: 24 }}
               showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={{ padding: 16 }}>
-                  <Text style={{ color: "#666", fontWeight: "700" }}>
-                    No events yet. Create an event to start an event chat.
-                  </Text>
-                </View>
-              }
             />
-
-            <View style={styles.feedHint}>
-              <Text style={styles.feedHintText}>Tap an event to open its chat.</Text>
-            </View>
           </>
         )}
       </View>
@@ -360,7 +402,4 @@ const styles = StyleSheet.create({
   threadTime: { color: "#666", fontWeight: "800", fontSize: 12 },
   threadSubtitle: { marginTop: 2, color: "#666", fontWeight: "700", fontSize: 12 },
   threadPreview: { marginTop: 4, color: "#444", fontWeight: "700" },
-
-  feedHint: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#eee" },
-  feedHintText: { color: "#666", fontWeight: "700" },
 });

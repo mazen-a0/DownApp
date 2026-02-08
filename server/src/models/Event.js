@@ -12,6 +12,10 @@ const eventSchema = new mongoose.Schema({
   startAt: { type: Date, required: true },
   endAt: { type: Date, required: true },
   placeLabel: String,
+
+  // ✅ NEW
+  emoji: { type: String, default: null },
+
   participantIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   hereIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   createdAt: { type: Date, default: Date.now }

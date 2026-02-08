@@ -9,7 +9,6 @@ export type FetchEventsParams = {
 
 export async function fetchEvents(params: FetchEventsParams): Promise<Event[]> {
   const res = await api.get("/events", { params });
-  // expects: { events: [...] } OR just [...]
   const data = res.data;
   if (Array.isArray(data)) return data as Event[];
   return (data.events ?? []) as Event[];
@@ -22,6 +21,9 @@ export async function createEvent(body: {
   startAt: string;
   endAt: string;
   placeLabel?: string;
+
+  // ✅ NEW
+  emoji?: string | null;
 }): Promise<Event> {
   const res = await api.post("/events", body);
   return res.data as Event;

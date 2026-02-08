@@ -43,22 +43,28 @@ async function assertMember(userId, groupId) {
  * GET /chat/general?groupId=...&limit=&before=
  * Returns Message[] (eventId null)
  */
-async function listGeneralMessages({ userId, groupId, limit, before }) {
+async function listGeneralMessages({ userId, groupId, limit, before, since }) {
   await assertMember(userId, groupId);
 
   const query = { groupId, eventId: null };
 
+  // ✅ NEW: live updates
+  if (since) {
+    const d = new Date(since);
+    if (!Number.isFinite(d.getTime())) throw httpError(400, "BAD_SINCE", "Invalid since date");
+    query.createdAt = { $gt: d };
+  }
+
+  // Existing pagination
   if (before) {
     const d = new Date(before);
     if (!Number.isFinite(d.getTime())) throw httpError(400, "BAD_BEFORE", "Invalid before date");
-    query.createdAt = { $lt: d };
+    query.createdAt = { ...(query.createdAt || {}), $lt: d };
   }
 
   const lim = parseLimit(limit, 200, 500);
 
-  // sorted ascending so UI can render top->bottom and scroll to bottom
   const docs = await Message.find(query).sort({ createdAt: 1 }).limit(lim);
-
   return docs.map(toDto);
 }
 
