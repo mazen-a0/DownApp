@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Alert } from "react-native";
 import dayjs from "dayjs";
 
-import { repo, chatRepo, type Event, type Message } from "../repositories";
+import { repo, type Event } from "../repositories";
 import { getUserIdOrThrow } from "../state/getUser";
 import { nameForUserId } from "../utils/userNames";
 
@@ -50,12 +50,14 @@ export default function LocationScreen() {
         });
       }
     }
+
     // Sort by place then name
     out.sort((a, b) => {
       const p = a.placeLabel.localeCompare(b.placeLabel);
       if (p !== 0) return p;
       return nameForUserId(a.userId).localeCompare(nameForUserId(b.userId));
     });
+
     return out;
   }, [events]);
 
@@ -64,13 +66,14 @@ export default function LocationScreen() {
   }, [hereList, userId]);
 
   const doCheckIn = async (targetEventId: string) => {
-    await repo.checkIn(targetEventId, userId);
+    // ✅ API mode: backend infers user from x-user-id, so do NOT pass userId
+    await repo.checkIn(targetEventId);
     await load();
   };
 
   const doCheckout = async (targetEventId: string) => {
-    // @ts-ignore demoRepo export
-    await repo.checkout(targetEventId, userId);
+    // ✅ API mode: backend infers user from x-user-id, so do NOT pass userId
+    await repo.checkout(targetEventId);
     await load();
   };
 
@@ -118,9 +121,7 @@ export default function LocationScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <Text style={styles.h1}>Where people are</Text>
-      <Text style={styles.sub}>
-        Based on “I’m here” check-ins (no GPS). Pull down to refresh.
-      </Text>
+      <Text style={styles.sub}>Based on “I’m here” check-ins (no GPS). Pull down to refresh.</Text>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Checked in</Text>
@@ -151,6 +152,7 @@ export default function LocationScreen() {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Places you can check into</Text>
+
         {eventsWithPlaces.length === 0 ? (
           <Text style={styles.small}>Create an event with a place to see it here.</Text>
         ) : (

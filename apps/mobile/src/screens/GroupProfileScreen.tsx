@@ -3,17 +3,48 @@ import { View, Text, StyleSheet, Pressable, TextInput, Alert, Image } from "reac
 import * as Clipboard from "expo-clipboard";
 import { loadSession, saveSession } from "../state/session";
 import { pickAndPersistImage } from "../utils/imageStore";
+import { fetchGroup, updateGroupName } from "../api/groupsApi";
 
 export default function GroupProfileScreen({ navigation }: any) {
+  const [groupId, setGroupId] = useState<string | null>(null);
+
   const [groupName, setGroupName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [groupPhotoUri, setGroupPhotoUri] = useState<string | null>(null);
 
+  const [loading, setLoading] = useState(false);
+
   const refresh = async () => {
     const s = await loadSession();
-    setGroupName(s.groupName || "");
-    setInviteCode(s.inviteCode || "");
+    setGroupId(s.groupId);
     setGroupPhotoUri(s.groupPhotoUri || null);
+
+    if (!s.groupId) {
+      setGroupName(s.groupName || "");
+      setInviteCode(s.inviteCode || "");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const g = await fetchGroup(s.groupId);
+
+      setGroupName(g.name || "");
+      setInviteCode(g.inviteCode || "");
+
+      // Keep session in sync (so other screens can display it)
+      await saveSession({
+        groupId: g.groupId,
+        groupName: g.name,
+        inviteCode: g.inviteCode,
+      });
+    } catch (e: any) {
+      // fallback to local if backend fails
+      setGroupName(s.groupName || "");
+      setInviteCode(s.inviteCode || "");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -24,7 +55,7 @@ export default function GroupProfileScreen({ navigation }: any) {
     const uri = await pickAndPersistImage("group");
     if (!uri) return;
     await saveSession({ groupPhotoUri: uri });
-    await refresh();
+    setGroupPhotoUri(uri);
   };
 
   const onSaveName = async () => {
@@ -33,8 +64,34 @@ export default function GroupProfileScreen({ navigation }: any) {
       Alert.alert("Group name required", "Please enter a group name.");
       return;
     }
-    await saveSession({ groupName: trimmed });
-    Alert.alert("Saved", "Group name updated (local).");
+
+    if (!groupId) {
+      // no backend group yet — local only
+      await saveSession({ groupName: trimmed });
+      Alert.alert("Saved", "Group name updated (local).");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const g = await updateGroupName(groupId, trimmed);
+
+      setGroupName(g.name || "");
+      setInviteCode(g.inviteCode || "");
+
+      await saveSession({
+        groupName: g.name,
+        inviteCode: g.inviteCode,
+      });
+
+      Alert.alert("Saved", "Group name updated.");
+    } catch (e: any) {
+      const msg =
+        e?.response ? `${e.response.status}: ${JSON.stringify(e.response.data)}` : e?.message;
+      Alert.alert("Update failed", msg || "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onCopyCode = async () => {
@@ -68,8 +125,8 @@ export default function GroupProfileScreen({ navigation }: any) {
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Group name</Text>
         <TextInput value={groupName} onChangeText={setGroupName} style={styles.input} />
-        <Pressable style={styles.primaryBtn} onPress={onSaveName}>
-          <Text style={styles.primaryText}>Save name</Text>
+        <Pressable style={styles.primaryBtn} onPress={onSaveName} disabled={loading}>
+          <Text style={styles.primaryText}>{loading ? "Saving..." : "Save name"}</Text>
         </Pressable>
       </View>
 

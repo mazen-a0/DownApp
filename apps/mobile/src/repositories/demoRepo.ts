@@ -1,4 +1,5 @@
 import { Event, CreateEventInput } from "./types";
+import { loadSession } from "../state/session";
 
 let EVENTS: Event[] = [
   {
@@ -23,22 +24,33 @@ let EVENTS: Event[] = [
   },
 ];
 
+async function resolveUserId(userId?: string): Promise<string> {
+  if (userId) return userId;
+  const s = await loadSession();
+  if (!s.userId) throw new Error("No userId in session (demoRepo).");
+  return s.userId;
+}
+
+function genId(prefix: string) {
+  return `${prefix}${Math.floor(Math.random() * 1000000)}`;
+}
+
 export async function listEvents(): Promise<Event[]> {
   return EVENTS;
 }
 
-export async function createEvent(
-  input: CreateEventInput,
-  userId: string
-): Promise<Event> {
+// userId is optional now (it will pull from session if omitted)
+export async function createEvent(input: CreateEventInput, userId?: string): Promise<Event> {
+  const uid = await resolveUserId(userId);
+
   const event: Event = {
-    eventId: "e" + Math.floor(Math.random() * 1000000),
+    eventId: genId("e"),
     title: input.title,
     tag: input.tag,
     startAt: input.startAt,
     endAt: input.endAt,
     placeLabel: input.placeLabel,
-    participantIds: [userId],
+    participantIds: [uid],
     hereIds: [],
   };
 
@@ -46,21 +58,25 @@ export async function createEvent(
   return event;
 }
 
-export async function joinEvent(eventId: string, userId: string) {
+export async function joinEvent(eventId: string, userId?: string) {
+  const uid = await resolveUserId(userId);
+
   EVENTS = EVENTS.map((e) =>
-    e.eventId === eventId && !e.participantIds.includes(userId)
-      ? { ...e, participantIds: [...e.participantIds, userId] }
+    e.eventId === eventId && !e.participantIds.includes(uid)
+      ? { ...e, participantIds: [...e.participantIds, uid] }
       : e
   );
 }
 
-export async function leaveEvent(eventId: string, userId: string) {
+export async function leaveEvent(eventId: string, userId?: string) {
+  const uid = await resolveUserId(userId);
+
   EVENTS = EVENTS.map((e) =>
     e.eventId === eventId
       ? {
           ...e,
-          participantIds: e.participantIds.filter((id) => id !== userId),
-          hereIds: e.hereIds.filter((id) => id !== userId),
+          participantIds: e.participantIds.filter((id) => id !== uid),
+          hereIds: e.hereIds.filter((id) => id !== uid),
         }
       : e
   );
@@ -70,8 +86,9 @@ export async function leaveEvent(eventId: string, userId: string) {
  * Returns the event where this user is currently checked in ("here"), if any.
  * (In demo mode, we enforce only one at a time.)
  */
-export async function getCurrentHereEvent(userId: string): Promise<Event | null> {
-  const found = EVENTS.find((e) => e.hereIds.includes(userId));
+export async function getCurrentHereEvent(userId?: string): Promise<Event | null> {
+  const uid = await resolveUserId(userId);
+  const found = EVENTS.find((e) => e.hereIds.includes(uid));
   return found || null;
 }
 
@@ -80,21 +97,20 @@ export async function getCurrentHereEvent(userId: string): Promise<Event | null>
  * - Ensures user is in participantIds
  * - Ensures user is only "here" in ONE event by removing from all other hereIds
  */
-export async function checkIn(eventId: string, userId: string) {
+export async function checkIn(eventId: string, userId?: string) {
+  const uid = await resolveUserId(userId);
+
   // remove user from "here" everywhere first
   EVENTS = EVENTS.map((e) => ({
     ...e,
-    hereIds: e.hereIds.filter((id) => id !== userId),
+    hereIds: e.hereIds.filter((id) => id !== uid),
   }));
 
   EVENTS = EVENTS.map((e) => {
     if (e.eventId !== eventId) return e;
 
-    const participantIds = e.participantIds.includes(userId)
-      ? e.participantIds
-      : [...e.participantIds, userId];
-
-    const hereIds = e.hereIds.includes(userId) ? e.hereIds : [...e.hereIds, userId];
+    const participantIds = e.participantIds.includes(uid) ? e.participantIds : [...e.participantIds, uid];
+    const hereIds = e.hereIds.includes(uid) ? e.hereIds : [...e.hereIds, uid];
 
     return { ...e, participantIds, hereIds };
   });
@@ -103,11 +119,11 @@ export async function checkIn(eventId: string, userId: string) {
 /**
  * Check out of one event (removes from hereIds only)
  */
-export async function checkout(eventId: string, userId: string) {
+export async function checkout(eventId: string, userId?: string) {
+  const uid = await resolveUserId(userId);
+
   EVENTS = EVENTS.map((e) =>
-    e.eventId === eventId
-      ? { ...e, hereIds: e.hereIds.filter((id) => id !== userId) }
-      : e
+    e.eventId === eventId ? { ...e, hereIds: e.hereIds.filter((id) => id !== uid) } : e
   );
 }
 

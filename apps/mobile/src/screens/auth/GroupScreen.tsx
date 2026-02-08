@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Alert } from "react-native";
 import { saveSession } from "../../state/session";
-import { groupRepo } from "../../repositories";
+import { createGroup, joinGroupByInviteCode } from "../../api/groupsApi";
 
 export default function GroupScreen({ navigation }: any) {
   const [createName, setCreateName] = useState("McGill Squad");
-  const [joinCode, setJoinCode] = useState("BOUTH3");
+  const [joinCode, setJoinCode] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const goToApp = async (groupId: string, groupName: string, inviteCode?: string) => {
     await saveSession({
@@ -27,14 +28,20 @@ export default function GroupScreen({ navigation }: any) {
       return;
     }
 
-    const group = await groupRepo.createGroup(name);
+    try {
+      setLoading(true);
 
-    Alert.alert(
-      "Group created!",
-      `Invite code: ${group.inviteCode}\n\nShare this with friends.`
-    );
+      const group = await createGroup({ name });
 
-    await goToApp(group.groupId, group.name, group.inviteCode);
+      Alert.alert("Group created!", `Invite code: ${group.inviteCode}\n\nShare this with friends.`);
+      await goToApp(group.groupId, group.name, group.inviteCode);
+    } catch (e: any) {
+      const msg =
+        e?.response ? `${e.response.status}: ${JSON.stringify(e.response.data)}` : e?.message;
+      Alert.alert("Create failed", msg || "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onJoin = async () => {
@@ -44,19 +51,26 @@ export default function GroupScreen({ navigation }: any) {
       return;
     }
 
-    const group = await groupRepo.joinGroupByCode(code);
+    try {
+      setLoading(true);
 
-    if (!group) {
-      Alert.alert("Invalid code", "No group found for that invite code (demo).");
-      return;
+      const group = await joinGroupByInviteCode({ inviteCode: code });
+
+      Alert.alert("Joined!", `You joined ${group.name}.`);
+      await goToApp(group.groupId, group.name, group.inviteCode);
+    } catch (e: any) {
+      const status = e?.response?.status;
+      if (status === 404) {
+        Alert.alert("Invalid code", "No group found for that invite code.");
+        return;
+      }
+
+      const msg =
+        e?.response ? `${e.response.status}: ${JSON.stringify(e.response.data)}` : e?.message;
+      Alert.alert("Join failed", msg || "Unknown error");
+    } finally {
+      setLoading(false);
     }
-
-    await goToApp(group.groupId, group.name, group.inviteCode);
-  };
-
-  const skipDemo = async () => {
-    // fallback if you want to jump in without typing
-    await goToApp("demo-group", "Demo Group", "DEMO00");
   };
 
   return (
@@ -72,8 +86,8 @@ export default function GroupScreen({ navigation }: any) {
           placeholder="Group name"
           style={styles.input}
         />
-        <Pressable style={styles.primaryBtn} onPress={onCreate}>
-          <Text style={styles.primaryText}>Create</Text>
+        <Pressable style={styles.primaryBtn} onPress={onCreate} disabled={loading}>
+          <Text style={styles.primaryText}>{loading ? "Creating..." : "Create"}</Text>
         </Pressable>
       </View>
 
@@ -82,18 +96,14 @@ export default function GroupScreen({ navigation }: any) {
         <TextInput
           value={joinCode}
           onChangeText={setJoinCode}
-          placeholder="Invite code (e.g. BOUTH3)"
+          placeholder="Invite code (e.g. DD2010)"
           autoCapitalize="characters"
           style={styles.input}
         />
-        <Pressable style={styles.secondaryBtn} onPress={onJoin}>
-          <Text style={styles.secondaryText}>Join</Text>
+        <Pressable style={styles.secondaryBtn} onPress={onJoin} disabled={loading}>
+          <Text style={styles.secondaryText}>{loading ? "Joining..." : "Join"}</Text>
         </Pressable>
       </View>
-
-      <Pressable style={styles.skipBtn} onPress={skipDemo}>
-        <Text style={styles.skipText}>Skip (demo)</Text>
-      </Pressable>
     </View>
   );
 }
@@ -138,7 +148,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   secondaryText: { color: "#111", fontWeight: "800" },
-
-  skipBtn: { marginTop: 18, alignItems: "center" },
-  skipText: { color: "#666", fontWeight: "700" },
 });

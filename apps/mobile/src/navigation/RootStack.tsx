@@ -16,10 +16,8 @@ export type RootStackParamList = {
   Name: undefined;
   Group: undefined;
   Tabs: undefined;
-
   CreateEvent: undefined;
   EventDetail: { eventId: string };
-
   GroupProfile: undefined;
 };
 
@@ -37,11 +35,7 @@ export default function RootStack() {
       <Stack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: "New Event" }} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ title: "Event" }} />
 
-      <Stack.Screen
-        name="GroupProfile"
-        component={GroupProfileScreen}
-        options={{ title: "Group settings" }}
-      />
+      <Stack.Screen name="GroupProfile" component={GroupProfileScreen} options={{ title: "Group settings" }} />
     </Stack.Navigator>
   );
 }

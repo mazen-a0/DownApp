@@ -3,7 +3,6 @@ import { View, Text, TextInput, Pressable, StyleSheet, Alert } from "react-nativ
 import dayjs from "dayjs";
 
 import { repo, type EventTag } from "../repositories";
-import { getUserIdOrThrow } from "../state/getUser";
 
 const TAGS: EventTag[] = ["study", "library", "food", "bar", "club", "stay_in", "gym", "other"];
 
@@ -14,25 +13,23 @@ export default function CreateEventScreen({ navigation }: any) {
 
   const onCreate = async () => {
     try {
-      const uid = await getUserIdOrThrow();
-
       const startAt = dayjs().add(1, "hour").toISOString();
       const endAt = dayjs().add(2, "hour").toISOString();
 
-      await repo.createEvent(
-        {
-          title: title.trim() || "Down",
-          tag,
-          startAt,
-          endAt,
-          placeLabel: placeLabel.trim() || undefined,
-        },
-        uid
-      );
+      // ✅ API mode: backend will infer user from x-user-id header.
+      await repo.createEvent({
+        title: title.trim() || "Down",
+        tag,
+        startAt,
+        endAt,
+        placeLabel: placeLabel.trim() || undefined,
+      });
 
       navigation.goBack();
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed to create event");
+      const msg =
+        e?.response ? `${e.response.status}: ${JSON.stringify(e.response.data)}` : e?.message;
+      Alert.alert("Error", msg || "Failed to create event");
     }
   };
 
