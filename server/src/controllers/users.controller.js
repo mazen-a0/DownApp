@@ -1,11 +1,15 @@
-const usersService = require("../services/users.service");
+const { upsertUser } = require("../services/users.service");
 
 async function createUser(req, res, next) {
   try {
-    const { name, pushToken } = req.body;
-    const user = await usersService.createUser({ name, pushToken });
+    const { name, deviceId, pushToken } = req.body;
 
-    res.status(201).json({ userId: user._id, name: user.name });
+    const user = await upsertUser({ name, deviceId, pushToken });
+
+    res.status(200).json({
+      userId: user._id,
+      name: user.name,
+    });
   } catch (err) {
     next(err);
   }
