@@ -6,12 +6,6 @@ function getExtFromUri(uri: string) {
   return m?.[1]?.toLowerCase() ?? "jpg";
 }
 
-function getBaseDir(): string | null {
-  // Some installs have broken TS types; runtime still has these.
-  const fs: any = FileSystem as any;
-  return fs.documentDirectory ?? fs.cacheDirectory ?? null;
-}
-
 export async function pickAndPersistImage(prefix: string): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return null;
@@ -25,20 +19,27 @@ export async function pickAndPersistImage(prefix: string): Promise<string | null
 
   if (result.canceled) return null;
 
-  const asset = result.assets[0];
+  const asset = result.assets?.[0];
+  if (!asset?.uri) return null;
 
-  const baseDir = getBaseDir();
-  if (!baseDir) throw new Error("No writable directory available on this device.");
+const baseDir = FileSystem.cacheDirectory;
+if (!baseDir) {
+  if (Platform.OS === "web") {
+    // fallback: return original URI or upload immediately
+    return asset.uri;
+  }
+  throw new Error("FileSystem.cacheDirectory is unavailable; rebuild app or use a fallback.");
+}
 
   const folder = baseDir + "images/";
-  const info = await (FileSystem as any).getInfoAsync(folder);
+  const info = await FileSystem.getInfoAsync(folder);
   if (!info.exists) {
-    await (FileSystem as any).makeDirectoryAsync(folder, { intermediates: true });
+    await FileSystem.makeDirectoryAsync(folder, { intermediates: true });
   }
 
   const ext = getExtFromUri(asset.uri);
   const dest = folder + `${prefix}-${Date.now()}.${ext}`;
 
-  await (FileSystem as any).copyAsync({ from: asset.uri, to: dest });
+  await FileSystem.copyAsync({ from: asset.uri, to: dest });
   return dest;
 }
