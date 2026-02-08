@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text } from "react-native";
 import { loadSession } from "../../state/session";
-import { setUserIdHeader } from "../../api/client"; // ✅ add this
+import { setUserIdHeader } from "../../api/client";
 
 export default function BootScreen({ navigation }: any) {
   const [status, setStatus] = useState("Booting…");
@@ -20,9 +20,8 @@ export default function BootScreen({ navigation }: any) {
       try {
         setStatus("Loading session…");
         const session = await loadSession();
-        if (session.userId) setUserIdHeader(session.userId);
 
-        // ✅ set x-user-id header for ALL future API calls
+        // Set header for future API calls (after app restart)
         if (session.userId) {
           setUserIdHeader(session.userId);
         }
