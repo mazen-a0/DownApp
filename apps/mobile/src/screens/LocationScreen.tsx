@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import dayjs from "dayjs";
 
@@ -141,8 +142,8 @@ export default function LocationScreen() {
               </View>
 
               {x.userId === userId ? (
-                <Pressable style={styles.outBtn} onPress={() => doCheckout(x.eventId)}>
-                  <Text style={styles.outText}>Check out</Text>
+                <Pressable style={styles.iconBtn} onPress={() => doCheckout(x.eventId)}>
+                  <Ionicons name="log-out-outline" size={20} color="#111" />
                 </Pressable>
               ) : null}
             </View>
@@ -171,12 +172,14 @@ export default function LocationScreen() {
                 </View>
 
                 <Pressable
-                  style={[styles.hereBtn, amHere && styles.hereBtnAlt]}
+                  style={[styles.iconBtnPrimary, amHere && styles.iconBtnAlt]}
                   onPress={() => onToggleHereForEvent(e.eventId, label)}
                 >
-                  <Text style={[styles.hereBtnText, amHere && styles.hereBtnTextAlt]}>
-                    {amHere ? "Check out" : "I'm here"}
-                  </Text>
+                  <Ionicons
+                    name={amHere ? "log-out-outline" : "location-outline"}
+                    size={22}
+                    color={amHere ? "#111" : "#fff"}
+                  />
                 </Pressable>
               </View>
             );
@@ -243,4 +246,24 @@ const styles = StyleSheet.create({
     borderColor: "#e6e6e6",
   },
   hereBtnTextAlt: { color: "#111" },
+
+  iconBtn: {
+    backgroundColor: "#f2f2f2",
+    padding: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#e6e6e6",
+  },
+
+  iconBtnPrimary: {
+    backgroundColor: "#111",
+    padding: 12,
+    borderRadius: 999,
+  },
+
+  iconBtnAlt: {
+    backgroundColor: "#f2f2f2",
+    borderWidth: 1,
+    borderColor: "#e6e6e6",
+  },
 });
