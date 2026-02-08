@@ -39,7 +39,6 @@ async function seed() {
     
     console.log('Creating users...');
     
-    // Note: Person B's upsertUser uses deviceId, not just name
     const amir = await upsertUser({ 
       name: 'Amir', 
       deviceId: 'device-amir-001',
@@ -74,7 +73,6 @@ async function seed() {
     console.log('Group created:', group.name, 'Code:', group.inviteCode);
     
     // Manually add Ishita and Evan to the group
-    // (Since Person B's joinGroup requires invite code, we'll do it directly)
     await Group.findByIdAndUpdate(group._id, {
       $addToSet: { memberIds: { $each: [ishita._id, evan._id] } }
     });
