@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const usersRoutes = require("./routes/users.routes");
 const groupsRoutes = require("./routes/groups.routes");
+const chatRoutes = require("./routes/chat.routes")
 
 const app = express(); //creates the app
 
@@ -22,11 +23,14 @@ app.use("/users", usersRoutes);
 
 // require user for everything else (MVP)
 app.use(requireUser);
+
+
 const eventsRoutes = require("./routes/events.routes");
 app.use("/events", eventsRoutes);
 
 // Protected routes (x-user-id required)
 app.use("/groups", groupsRoutes);
+app.use("/chat", chatRoutes);
 
 
 //app.get("/me", (req, res) => {

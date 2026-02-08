@@ -32,5 +32,8 @@
       }
     },
     "owner": "sophiemcb"
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
