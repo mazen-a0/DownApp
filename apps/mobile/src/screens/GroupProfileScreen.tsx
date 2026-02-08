@@ -12,18 +12,26 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { loadSession, saveSession } from "../state/session";
 import { pickAndPersistImage } from "../utils/imageStore";
-import { fetchGroup, updateGroupName, listMyGroups, type GroupDto } from "../api/groupsApi";
+import {
+  fetchGroup,
+  updateGroupName,
+  listMyGroups,
+  type GroupDto,
+} from "../api/groupsApi";
+import { lookupUsers } from "../api/usersApi";
 
 export default function GroupProfileScreen({ navigation }: any) {
   const [groupId, setGroupId] = useState<string | null>(null);
-
   const [groupName, setGroupName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [groupPhotoUri, setGroupPhotoUri] = useState<string | null>(null);
-
   const [myGroups, setMyGroups] = useState<GroupDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
+
+  // NEW: members
+  const [members, setMembers] = useState<{ userId: string; name: string }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   const refresh = async () => {
     const s = await loadSession();
@@ -33,7 +41,7 @@ export default function GroupProfileScreen({ navigation }: any) {
     try {
       setLoading(true);
 
-      // 1) Load my groups (for switching UI)
+      // 1) Load my groups
       const groups = await listMyGroups();
       setMyGroups(groups);
 
@@ -50,15 +58,37 @@ export default function GroupProfileScreen({ navigation }: any) {
           groupName: g.name,
           inviteCode: g.inviteCode,
         });
+
+        // 3) Fetch members (IDs -> names)
+        if (g.memberIds && g.memberIds.length > 0) {
+          setLoadingMembers(true);
+          try {
+            const membersMap = await lookupUsers(g.memberIds);
+            setMembers(
+              Object.entries(membersMap).map(([userId, name]) => ({
+                userId,
+                name: String(name),
+              }))
+            );
+          } catch (e) {
+            console.error("Failed to fetch group members", e);
+            setMembers([]);
+          } finally {
+            setLoadingMembers(false);
+          }
+        } else {
+          setMembers([]);
+        }
       } else {
-        // fallback to local if no selected group
+        // fallback to local session
         setGroupName(s.groupName || "");
         setInviteCode(s.inviteCode || "");
+        setMembers([]);
       }
     } catch (e: any) {
-      // fallback to local session if server fails
       setGroupName(s.groupName || "");
       setInviteCode(s.inviteCode || "");
+      setMembers([]);
     } finally {
       setLoading(false);
     }
@@ -132,7 +162,6 @@ export default function GroupProfileScreen({ navigation }: any) {
       setGroupName(g.name || "");
       setInviteCode(g.inviteCode || "");
 
-      // optional fresh fetch
       try {
         const fresh = await fetchGroup(g.groupId);
         setGroupName(fresh.name || "");
@@ -140,10 +169,7 @@ export default function GroupProfileScreen({ navigation }: any) {
         await saveSession({ groupName: fresh.name, inviteCode: fresh.inviteCode });
       } catch {}
 
-      // ✅ Tell the rest of the app to refresh
       navigation.getParent()?.emit({ type: "groupChanged", data: { groupId: g.groupId } });
-
-      // ✅ Leave settings screen (feels natural)
       navigation.goBack();
 
       Alert.alert("Switched group", `You are now in ${g.name}.`);
@@ -152,16 +178,15 @@ export default function GroupProfileScreen({ navigation }: any) {
     }
   };
 
-  // If current group isn't in myGroups (can happen), still show it at top
   const currentShownInList = groupId && myGroups.some((x) => x.groupId === groupId);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
       <Text style={styles.h1}>Group Settings</Text>
 
+      {/* Group photo */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Group photo</Text>
-
         <View style={{ alignItems: "center", marginTop: 10 }}>
           {groupPhotoUri ? (
             <Image source={{ uri: groupPhotoUri }} style={styles.groupPhoto} />
@@ -177,6 +202,7 @@ export default function GroupProfileScreen({ navigation }: any) {
         </View>
       </View>
 
+      {/* Group name */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Group name</Text>
         <TextInput value={groupName} onChangeText={setGroupName} style={styles.input} />
@@ -187,6 +213,7 @@ export default function GroupProfileScreen({ navigation }: any) {
         </Pressable>
       </View>
 
+      {/* Invite code */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Invite code</Text>
         <Text style={styles.code}>{inviteCode || "—"}</Text>
@@ -195,11 +222,10 @@ export default function GroupProfileScreen({ navigation }: any) {
         </Pressable>
       </View>
 
+      {/* Switch groups */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Switch groups</Text>
-
         {switching ? <Text style={styles.small}>Switching…</Text> : null}
-
         {loading && myGroups.length === 0 ? (
           <Text style={styles.small}>Loading your groups…</Text>
         ) : myGroups.length === 0 ? (
@@ -253,6 +279,22 @@ export default function GroupProfileScreen({ navigation }: any) {
         <Pressable style={styles.linkBtn} onPress={refresh} disabled={switching}>
           <Text style={styles.linkText}>Refresh</Text>
         </Pressable>
+      </View>
+
+      {/* NEW: Group members */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Group Members</Text>
+        {loadingMembers ? (
+          <Text style={styles.small}>Loading members…</Text>
+        ) : members.length === 0 ? (
+          <Text style={styles.small}>No members found.</Text>
+        ) : (
+          members.map((m) => (
+            <View key={m.userId} style={styles.memberRow}>
+              <Text style={styles.memberName}>{m.name}</Text>
+            </View>
+          ))
+        )}
       </View>
 
       <Pressable style={styles.backBtn} onPress={() => navigation.goBack()} disabled={switching}>
@@ -325,9 +367,7 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: "white",
   },
-  groupRowActive: {
-    borderColor: "#111",
-  },
+  groupRowActive: { borderColor: "#111" },
   groupRowTitle: { fontSize: 16, fontWeight: "900", color: "#111" },
   groupRowTitleActive: { color: "#111" },
   groupRowMeta: { marginTop: 4, color: "#666", fontWeight: "700" },
@@ -338,4 +378,15 @@ const styles = StyleSheet.create({
 
   backBtn: { marginTop: 20, alignItems: "center" },
   backText: { color: "#666", fontWeight: "800" },
+
+  memberRow: {
+    marginTop: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 12,
+    backgroundColor: "#fafafa",
+  },
+  memberName: { fontSize: 16, fontWeight: "700", color: "#111" },
 });
+

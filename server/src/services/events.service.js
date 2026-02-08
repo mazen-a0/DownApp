@@ -228,49 +228,89 @@ async function checkOutEvent({ userId, eventId }) {
   await Event.updateOne({ _id: eventId }, { $pull: { hereIds: userId } });
 }
 
-const Poke = require('../models/Poke');
+const Poke = require("../models/Poke");
+
+const POKE_MAX_CHARS = 80;
 
 async function createPoke({ fromUserId, toUserId, eventId, message }) {
-  if (!toUserId || !message) {
-    const err = new Error('MISSING_FIELDS');
+  console.log("[POKE] createPoke called", {
+    fromUserId: String(fromUserId),
+    toUserId: String(toUserId),
+    eventId: String(eventId),
+    rawMessageLen: String(message ?? "").length,
+  });
+
+  const clean = String(message ?? "").trim();
+  console.log("[POKE] cleaned message", { cleanLen: clean.length, clean });
+
+  if (!toUserId || !clean) {
+    console.log("[POKE] missing fields", { toUserId, clean });
+    const err = new Error("MISSING_FIELDS");
     err.status = 400;
     throw err;
   }
 
-  const event = await Event.findById(eventId);
+  if (clean.length > POKE_MAX_CHARS) {
+    console.log("[POKE] too long", { cleanLen: clean.length, max: POKE_MAX_CHARS });
+    const err = new Error("POKE_MESSAGE_TOO_LONG");
+    err.status = 400;
+    throw err;
+  }
+
+  const event = await Event.findById(eventId).select("_id groupId title placeLabel participantIds");
+  console.log("[POKE] event lookup", { found: !!event, eventGroupId: event ? String(event.groupId) : null });
+
   if (!event) {
-    const err = new Error('EVENT_NOT_FOUND');
+    const err = new Error("EVENT_NOT_FOUND");
     err.status = 404;
     throw err;
   }
 
   await assertMember(fromUserId, event.groupId);
+  console.log("[POKE] assertMember ok");
 
-  await Poke.create({
+  const pokeDoc = await Poke.create({
     eventId,
     groupId: event.groupId,
     fromUserId,
     toUserId,
-    message,
+    message: clean,
     createdAt: new Date(),
   });
+  console.log("[POKE] poke saved", { pokeId: String(pokeDoc._id) });
 
-  // NEW POKE NOTIFICATION: notify the user that they got poked
+  // 🔥 IMPORTANT: fetch both users to see if tokens exist
+  const [fromUser, toUser] = await Promise.all([
+    User.findById(fromUserId).select("name pushToken"),
+    User.findById(toUserId).select("name pushToken"),
+  ]);
+
+  console.log("[POKE] users", {
+    fromName: fromUser?.name,
+    toName: toUser?.name,
+    fromTokenPrefix: fromUser?.pushToken ? fromUser.pushToken.slice(0, 20) : null,
+    toTokenPrefix: toUser?.pushToken ? toUser.pushToken.slice(0, 20) : null,
+    toHasToken: !!toUser?.pushToken,
+  });
+
   try {
-    const fromUser = await User.findById(fromUserId).select('name');
-    
-    await notifyUser(
+    console.log("[POKE] notifying user…", { toUserId: String(toUserId) });
+
+    const result = await notifyUser(
       toUserId,
-      `${fromUser.name} poked you!`,
-      message || 'Back to work 😤',
+      `${fromUser?.name ?? "Someone"} poked you!`,
+      clean,
       {
-        type: 'poke',
-        eventId: eventId.toString(),
-        fromUserId: fromUserId.toString()
+        type: "poke",
+        eventId: String(eventId),
+        fromUserId: String(fromUserId),
+        toUserId: String(toUserId),
       }
     );
+
+    console.log("[POKE] notifyUser result:", result);
   } catch (notifError) {
-    console.error('Failed to send poke notification:', notifError);
+    console.error("[POKE] notifyUser threw:", notifError);
   }
 }
 

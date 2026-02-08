@@ -77,15 +77,39 @@ async function checkOutEvent(req, res, next) {
   }
 }
 
+// POST /events/:eventId/pokes
 async function createPoke(req, res, next) {
   try {
     const fromUserId = req.userId;
     const { eventId } = req.params;
     const { toUserId, message } = req.body;
 
+    console.log("[POKE CTRL] hit", {
+      fromUserId: String(fromUserId),
+      eventId: String(eventId),
+      toUserId: String(toUserId),
+      msgLen: String(message ?? "").length,
+    });
+
+    console.log("[POKE CTRL] eventsService keys", Object.keys(eventsService || {}));
+    console.log("[POKE CTRL] typeof createPoke", typeof eventsService?.createPoke);
+
+    console.log("[POKE CTRL] calling service...");
     await eventsService.createPoke({ fromUserId, toUserId, eventId, message });
-    res.json({ ok: true });
+    console.log("[POKE CTRL] service finished ✅");
+
+    // return debug info (client can ignore extra fields)
+    res.json({
+      ok: true,
+      debug: {
+        fromUserId: String(fromUserId),
+        eventId: String(eventId),
+        toUserId: String(toUserId),
+        msgLen: String(message ?? "").length,
+      },
+    });
   } catch (err) {
+    console.error("[POKE CTRL] error", err);
     next(err);
   }
 }

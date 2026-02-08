@@ -8,6 +8,7 @@ import {
   leaveEvent as apiLeave,
   checkIn as apiCheckIn,
   checkout as apiCheckout,
+    pokeEvent as apiPokeEvent, // ✅ add
 } from "../api/eventsApi";
 
 export async function listEvents(): Promise<Event[]> {
@@ -68,10 +69,14 @@ export async function getCurrentHereEvent(userId: string): Promise<Event | null>
 }
 
 export async function poke(
-  _eventId: string,
+  eventId: string,
   _fromUserId: string,
-  _toUserId: string,
-  _message: string
+  toUserId: string,
+  message: string
 ): Promise<void> {
-  return;
+  const clean = String(message ?? "").trim();
+  if (!clean) throw new Error("EMPTY_POKE_MESSAGE");
+  if (clean.length > 80) throw new Error("POKE_MESSAGE_TOO_LONG");
+
+  await apiPokeEvent(eventId, { toUserId, message: clean });
 }

@@ -32,6 +32,11 @@ app.use("/events", eventsRoutes);
 app.use("/groups", groupsRoutes);
 app.use("/chat", chatRoutes);
 
+app.use((req, res, next) => {
+  console.log("[REQ]", req.method, req.originalUrl);
+  next();
+});
+
 
 //app.get("/me", (req, res) => {
 //    res.json({ userId: req.userId });

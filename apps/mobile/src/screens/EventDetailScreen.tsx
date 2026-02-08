@@ -18,6 +18,8 @@ import { getUserIdOrThrow } from "../state/getUser";
 import { getGroupIdOrThrow } from "../state/getGroup";
 import { nameForUserId, ensureUserNames } from "../state/userNames";
 
+const POKE_MAX = 80;
+
 export default function EventDetailScreen({ route, navigation }: any) {
   const routeEventId = route?.params?.eventId ?? route?.params?.id;
   const [event, setEvent] = useState<Event | null>(null);
@@ -27,6 +29,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
+
+  // ✅ Poke composer state
+  const [pokeToUserId, setPokeToUserId] = useState<string | null>(null);
+  const [pokeText, setPokeText] = useState<string>("Back to work 😤");
 
   const load = async () => {
     try {
@@ -146,11 +152,37 @@ export default function EventDetailScreen({ route, navigation }: any) {
     await doCheckIn();
   };
 
-  const onPoke = async (toUserId: string) => {
-    if (!userId) return;
+  // ✅ open poke composer
+  const openPoke = (toId: string) => {
+    setPokeToUserId(toId);
+    setPokeText("Back to work 😤");
+  };
 
-    await repo.poke(event.eventId, userId, toUserId, "Back to work 😤");
-    Alert.alert("Poked!", `Sent a poke to ${nameForUserId(toUserId)} (demo).`);
+  // ✅ send poke with text
+  const sendPoke = async () => {
+    if (!userId || !pokeToUserId) return;
+
+    const clean = String(pokeText ?? "").trim();
+    if (!clean) {
+      Alert.alert("Write a message", "Poke message can't be empty.");
+      return;
+    }
+    if (clean.length > POKE_MAX) {
+      Alert.alert("Too long", `Keep it under ${POKE_MAX} characters.`);
+      return;
+    }
+
+    try {
+      await repo.poke(event.eventId, userId, pokeToUserId, clean);
+      Alert.alert("Poked!", `Sent a poke to ${nameForUserId(pokeToUserId)}.`);
+      setPokeToUserId(null);
+      setPokeText("Back to work 😤");
+    } catch (e: any) {
+      const msg = e?.response
+        ? `${e.response.status}: ${JSON.stringify(e.response.data)}`
+        : e?.message;
+      Alert.alert("Error", msg || "Failed to send poke");
+    }
   };
 
   const onSend = async () => {
@@ -196,13 +228,42 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </Text>
 
               {id !== userId ? (
-                <Pressable style={styles.pokeBtn} onPress={() => onPoke(id)}>
+                <Pressable style={styles.pokeBtn} onPress={() => openPoke(id)}>
                   <Text style={styles.pokeText}>Poke</Text>
                 </Pressable>
               ) : null}
             </View>
           ))}
         </View>
+
+        {/* ✅ Poke composer */}
+        {pokeToUserId ? (
+          <View style={styles.pokeComposer}>
+            <Text style={styles.bold}>Poke {nameForUserId(pokeToUserId)}</Text>
+
+            <TextInput
+              value={pokeText}
+              onChangeText={(t) => setPokeText(t.slice(0, POKE_MAX))}
+              placeholder="Write a quick poke…"
+              style={styles.pokeInput}
+              maxLength={POKE_MAX}
+            />
+
+            <Text style={styles.pokeCount}>
+              {pokeText.length}/{POKE_MAX}
+            </Text>
+
+            <View style={styles.pokeActions}>
+              <Pressable style={styles.pokeCancelBtn} onPress={() => setPokeToUserId(null)}>
+                <Text style={styles.pokeCancelText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable style={styles.pokeSendBtn} onPress={sendPoke}>
+                <Text style={styles.pokeSendText}>Send Poke</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.box}>
           <Text style={styles.bold}>Here ({event.hereIds.length})</Text>
@@ -333,6 +394,52 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   pokeText: { color: "white", fontWeight: "700" },
+
+  // ✅ poke composer styles
+  pokeComposer: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: "white",
+  },
+  pokeInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: "white",
+  },
+  pokeCount: {
+    marginTop: 8,
+    color: "#666",
+    fontWeight: "700",
+    textAlign: "right",
+  },
+  pokeActions: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end",
+  },
+  pokeCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  pokeCancelText: { fontWeight: "900", color: "#111" },
+  pokeSendBtn: {
+    backgroundColor: "black",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  pokeSendText: { color: "white", fontWeight: "900" },
 
   small: { color: "#555", marginTop: 4 },
   tip: { marginTop: 12, color: "#666" },
