@@ -8,11 +8,23 @@ export type UpsertUserInput = {
 
 export type UpsertUserResponse = {
   userId: string;
+  name: string;
 };
 
 export async function upsertUser(input: UpsertUserInput): Promise<UpsertUserResponse> {
-  // Pick ONE route your Express server supports.
-  // If your friend used something else, tell me the endpoint and I’ll match it.
   const res = await api.post("/users/upsert", input);
   return res.data as UpsertUserResponse;
+}
+
+/**
+ * POST /users/lookup
+ * body: { ids: string[] }
+ * returns: { users: { [id: string]: string } }
+ */
+export async function lookupUsers(ids: string[]): Promise<Record<string, string>> {
+  const unique = Array.from(new Set((ids || []).filter(Boolean)));
+  if (unique.length === 0) return {};
+
+  const res = await api.post("/users/lookup", { ids: unique });
+  return (res.data?.users ?? {}) as Record<string, string>;
 }

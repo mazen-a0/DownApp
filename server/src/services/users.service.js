@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 
 async function upsertUser({ name, deviceId, pushToken }) {
@@ -20,4 +21,20 @@ async function upsertUser({ name, deviceId, pushToken }) {
   return user;
 }
 
-module.exports = { upsertUser };
+// ✅ NEW
+async function lookupUsersByIds(ids) {
+  const unique = Array.from(new Set((ids || []).filter(Boolean)));
+
+  // filter only valid ObjectIds (otherwise Mongoose CastError)
+  const valid = unique.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (valid.length === 0) return {};
+
+  const users = await User.find({ _id: { $in: valid } }).select("_id name").lean();
+
+  const map = {};
+  for (const u of users) map[String(u._id)] = u.name;
+
+  return map;
+}
+
+module.exports = { upsertUser, lookupUsersByIds };
