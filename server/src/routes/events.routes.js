@@ -14,6 +14,19 @@ const router = express.Router();
 // GET /events?groupId=...&from=...&to=...
 router.get("/", listEvents);
 
+// GET /groups/:groupId/members (NEW FROM SOFIA)
+router.get('/groups/:groupId/members', async (req, res) => {
+  const { groupId } = req.params;
+  const members = await getGroupMembers(groupId);
+  
+  res.json({
+    members: members.map(m => ({
+      userId: m._id,
+      name: m.name
+    }))
+  });
+});
+
 // POST /events
 router.post("/", createEvent);
 
@@ -30,6 +43,8 @@ router.post("/:eventId/checkin", checkInEvent);
 router.post("/:eventId/checkout", checkOutEvent);
 
 router.post('/:eventId/pokes', createPoke);
+
+
 
 
 module.exports = router;
