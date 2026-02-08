@@ -65,4 +65,17 @@ async function joinGroup({ inviteCode, userId }) {
   return group;
 }
 
-module.exports = { createGroup, joinGroup };
+async function getMyGroup({ userId }) {
+  const user = await User.findById(userId);
+  if (!user || !user.groupIds || user.groupIds.length === 0) {
+    return null;
+  }
+
+  // MVP assumption: one active group
+  const groupId = user.groupIds[0];
+  const group = await Group.findById(groupId);
+
+  return group;
+}
+
+module.exports = { createGroup, joinGroup, getMyGroup };
