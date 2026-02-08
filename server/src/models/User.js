@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   pushToken: String,
   groupIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  deviceID: { type: String, required: true, unique: true },
   createdAt: { type: Date, default: Date.now }
 });
 
