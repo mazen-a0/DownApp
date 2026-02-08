@@ -174,6 +174,20 @@ async function sendMessage({ groupId, eventId = null, userId, text }) {
   return message.toObject();
 }
 
+// Get multiple users by IDs
+async function getUsersByIds(userIds) {
+  return await User.find({ _id: { $in: userIds } })
+    .select('_id name')
+    .lean();
+}
+
+// Get all users in a group
+async function getGroupMembers(groupId) {
+  const group = await Group.findById(groupId).populate('memberIds', '_id name');
+  return group ? group.memberIds : [];
+}
+
+
 // Export these
 module.exports = {
   createGroup,
@@ -189,5 +203,7 @@ module.exports = {
   listGeneralMessages,
   listEventsFeed,
   listEventMessages,
-  sendMessage
+  sendMessage,
+  getUsersByIds,
+  getGroupMembers
 };
