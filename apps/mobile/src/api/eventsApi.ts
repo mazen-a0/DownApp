@@ -1,10 +1,48 @@
 import { api } from "./client";
+import type { Event } from "../repositories/types";
 
-export async function fetchEvents(params: {
+export type FetchEventsParams = {
   groupId: string;
-  from: string;
-  to: string;
-}) {
-  const res = await api.get<{ events: any[] }>("/events", { params });
-  return res.data.events;
+  from: string; // ISO
+  to: string;   // ISO
+};
+
+export async function fetchEvents(params: FetchEventsParams): Promise<Event[]> {
+  const res = await api.get("/events", { params });
+  // expects: { events: [...] } OR just [...]
+  const data = res.data;
+  if (Array.isArray(data)) return data as Event[];
+  return (data.events ?? []) as Event[];
+}
+
+export async function createEvent(body: {
+  groupId: string;
+  title: string;
+  tag: string;
+  startAt: string;
+  endAt: string;
+  placeLabel?: string;
+}): Promise<Event> {
+  const res = await api.post("/events", body);
+  return res.data as Event;
+}
+
+export async function joinEvent(eventId: string) {
+  const res = await api.post(`/events/${eventId}/join`);
+  return res.data;
+}
+
+export async function leaveEvent(eventId: string) {
+  const res = await api.post(`/events/${eventId}/leave`);
+  return res.data;
+}
+
+export async function checkIn(eventId: string) {
+  const res = await api.post(`/events/${eventId}/checkin`, { status: "here" });
+  return res.data;
+}
+
+export async function checkout(eventId: string) {
+  const res = await api.post(`/events/${eventId}/checkout`);
+  return res.data;
 }

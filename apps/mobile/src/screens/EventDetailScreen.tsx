@@ -23,7 +23,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [event, setEvent] = useState<Event | null>(null);
 
   const [userId, setUserId] = useState<string>("");
-  const [groupId, setGroupId] = useState<string>("g1");
+  const [groupId, setGroupId] = useState<string>("");
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -92,20 +92,22 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const onToggleDown = async () => {
     if (!userId) return;
 
-    if (isDown) await repo.leaveEvent(event.eventId, userId);
-    else await repo.joinEvent(event.eventId, userId);
+    // API mode: backend infers user from x-user-id, so do NOT pass userId
+    if (isDown) await repo.leaveEvent(event.eventId);
+    else await repo.joinEvent(event.eventId);
 
     await load();
   };
 
   const doCheckIn = async () => {
-    await repo.checkIn(event.eventId, userId);
+    if (!userId) return;
+    await repo.checkIn(event.eventId);
     await load();
   };
 
   const doCheckout = async () => {
-    // @ts-ignore demoRepo export
-    await repo.checkout(event.eventId, userId);
+    if (!userId) return;
+    await repo.checkout(event.eventId);
     await load();
   };
 
@@ -117,7 +119,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
       return;
     }
 
-    // @ts-ignore demoRepo export
+    // local helper: scans today's events and checks hereIds
     const current = await repo.getCurrentHereEvent(userId);
 
     if (current && current.eventId !== event.eventId) {
@@ -128,12 +130,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         }\n\nCheck out and check in here instead?`,
         [
           { text: "Cancel", style: "cancel" },
-          {
-            text: "Yes, switch",
-            onPress: async () => {
-              await doCheckIn();
-            },
-          },
+          { text: "Yes, switch", onPress: async () => doCheckIn() },
         ]
       );
       return;
@@ -145,6 +142,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const onPoke = async (toUserId: string) => {
     if (!userId) return;
 
+    // still demo/local for now unless backend has pokes
     await repo.poke(event.eventId, userId, toUserId, "Back to work 😤");
     Alert.alert("Poked!", `Sent a poke to ${nameForUserId(toUserId)} (demo).`);
   };
@@ -221,7 +219,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </View>
 
         <View style={{ marginTop: 10 }}>
-          <Button title={isHere ? "Check out (I'm not here)" : "I'm here! 📍"} onPress={onToggleHere} />
+          <Button
+            title={isHere ? "Check out (I'm not here)" : "I'm here! 📍"}
+            onPress={onToggleHere}
+          />
         </View>
 
         {downOthers.length === 0 ? (
@@ -231,53 +232,50 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <View style={styles.chatBox}>
           <Text style={styles.bold}>Messages</Text>
 
-        {messages.length === 0 ? (
-        <Text style={styles.small}>No messages yet — start the vibe.</Text>
-        ) : (
-        messages.map((m) => {
-            const mine = m.fromUserId === userId;
-            return (
-            <View
-                key={m.messageId}
-                style={{
-                alignItems: mine ? "flex-end" : "flex-start",
-                marginTop: 10,
-                }}
-            >
+          {messages.length === 0 ? (
+            <Text style={styles.small}>No messages yet — start the vibe.</Text>
+          ) : (
+            messages.map((m) => {
+              const mine = m.fromUserId === userId;
+              return (
                 <View
-                style={{
-                    maxWidth: "82%",
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    borderRadius: 18,
-                    backgroundColor: mine ? "#111" : "#f1f1f1",
-                }}
+                  key={m.messageId}
+                  style={{ alignItems: mine ? "flex-end" : "flex-start", marginTop: 10 }}
                 >
-                {!mine ? (
-                    <Text style={{ fontWeight: "900", marginBottom: 6, color: "#111" }}>
-                    {nameForUserId(m.fromUserId)}
-                    </Text>
-                ) : null}
-
-                <Text style={{ fontSize: 16, fontWeight: "600", color: mine ? "white" : "#111" }}>
-                    {m.text}
-                </Text>
-
-                <Text
+                  <View
                     style={{
-                    marginTop: 8,
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color: mine ? "rgba(255,255,255,0.75)" : "#666",
+                      maxWidth: "82%",
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 18,
+                      backgroundColor: mine ? "#111" : "#f1f1f1",
                     }}
-                >
-                    {dayjs(m.createdAt).format("h:mm A")}
-                </Text>
+                  >
+                    {!mine ? (
+                      <Text style={{ fontWeight: "900", marginBottom: 6, color: "#111" }}>
+                        {nameForUserId(m.fromUserId)}
+                      </Text>
+                    ) : null}
+
+                    <Text style={{ fontSize: 16, fontWeight: "600", color: mine ? "white" : "#111" }}>
+                      {m.text}
+                    </Text>
+
+                    <Text
+                      style={{
+                        marginTop: 8,
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: mine ? "rgba(255,255,255,0.75)" : "#666",
+                      }}
+                    >
+                      {dayjs(m.createdAt).format("h:mm A")}
+                    </Text>
+                  </View>
                 </View>
-            </View>
-            );
-        })
-        )}
+              );
+            })
+          )}
 
           <View style={styles.inputRow}>
             <TextInput
@@ -298,7 +296,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
           <Button title="Back" onPress={() => navigation.goBack()} />
         </View>
 
-        {/* padding so last message / input isn't glued to bottom */}
         <View style={{ height: 30 }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -321,7 +318,12 @@ const styles = StyleSheet.create({
   },
   bold: { fontWeight: "800", marginBottom: 10, fontSize: 16 },
 
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
   name: { fontSize: 16 },
 
   pokeBtn: {
@@ -343,10 +345,6 @@ const styles = StyleSheet.create({
     padding: 14,
     backgroundColor: "white",
   },
-  msgRow: { marginTop: 10 },
-  msgAuthor: { fontWeight: "900" },
-  msgText: { marginTop: 2, fontSize: 15 },
-  msgTime: { marginTop: 2, color: "#777", fontSize: 12 },
 
   inputRow: { flexDirection: "row", gap: 10, marginTop: 12, alignItems: "center" },
   input: {
