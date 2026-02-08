@@ -1,19 +1,20 @@
 const chatService = require("../services/chat.service");
 
 // GET /chat/general?groupId=...&limit=&before=
+// GET /chat/general?groupId=...&limit=&before=&since=
 async function getGeneral(req, res, next) {
   try {
     const userId = req.userId;
-    const { groupId, limit, before } = req.query;
+    const { groupId, limit, before, since } = req.query;
 
     const messages = await chatService.listGeneralMessages({
       userId,
       groupId,
       limit,
       before,
+      since,
     });
 
-    // Must be a raw array
     res.json(messages);
   } catch (err) {
     next(err);

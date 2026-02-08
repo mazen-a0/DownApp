@@ -57,11 +57,13 @@ async function listEvents({ userId, groupId, from, to }) {
     placeLabel: e.placeLabel || null,
     participantIds: e.participantIds.map(asStr),
     hereIds: e.hereIds.map(asStr),
+    emoji: e.emoji || null,
+
   }));
 }
 
 async function createEvent({ userId, payload }) {
-  const { groupId, title, tag, startAt, endAt, placeLabel } = payload;
+  const { groupId, title, tag, startAt, endAt, placeLabel, emoji } = payload;
 
   if (!groupId || !title || !tag || !startAt || !endAt) {
     const err = new Error("MISSING_FIELDS");
@@ -79,6 +81,7 @@ async function createEvent({ userId, payload }) {
     startAt: new Date(startAt),
     endAt: new Date(endAt),
     placeLabel: placeLabel ? String(placeLabel).trim() : null,
+    emoji: emoji ? String(emoji).trim() : null,
     participantIds: [userId], // creator is automatically “down”
     hereIds: [],
   });

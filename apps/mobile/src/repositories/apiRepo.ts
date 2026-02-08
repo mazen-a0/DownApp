@@ -10,7 +10,6 @@ import {
   checkout as apiCheckout,
 } from "../api/eventsApi";
 
-// Helper: list today's events for current group
 export async function listEvents(): Promise<Event[]> {
   const session = await loadSession();
   if (!session.groupId) return [];
@@ -27,6 +26,9 @@ export async function createEvent(input: {
   startAt: string;
   endAt: string;
   placeLabel?: string;
+
+  // ✅ NEW
+  emoji?: string | null;
 }): Promise<Event> {
   const session = await loadSession();
   if (!session.groupId) throw new Error("No group selected yet.");
@@ -38,6 +40,9 @@ export async function createEvent(input: {
     startAt: input.startAt,
     endAt: input.endAt,
     placeLabel: input.placeLabel,
+
+    // ✅ NEW
+    emoji: input.emoji ?? null,
   });
 }
 
@@ -57,20 +62,16 @@ export async function checkout(eventId: string): Promise<void> {
   await apiCheckout(eventId);
 }
 
-// Optional helper (no backend endpoint needed):
-// Find which event the user is currently "Here" in, by scanning today's events.
 export async function getCurrentHereEvent(userId: string): Promise<Event | null> {
   const events = await listEvents();
   return events.find((e) => e.hereIds?.includes(userId)) ?? null;
 }
 
-// If pokes aren't implemented yet, don't break UI:
 export async function poke(
   _eventId: string,
   _fromUserId: string,
   _toUserId: string,
   _message: string
 ): Promise<void> {
-  // TODO: hook to POST /pokes when backend implements it
   return;
 }
